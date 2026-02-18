@@ -1,17 +1,46 @@
 ---
+import Layout from "../layouts/Layout.astro";
+import { SignedIn, SignedOut } from "@clerk/astro/components";
 
+const apiUrl = import.meta.env.API_URL ?? "http://localhost:8080";
+
+const health = await fetch(`${apiUrl}/health`)
+  .then((r) => r.json())
+  .catch(() => ({ status: "down", db: "down" }));
+
+const users = await fetch(`${apiUrl}/users`)
+  .then((r) => (r.ok ? r.json() : []))
+  .catch(() => []);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout title="Clerk + Astro + PostgreSQL">
+  <SignedOut>
+    <p>Sign in to try Clerk out!</p>
+  </SignedOut>
+
+  <SignedIn>
+    <p>You are signed in!</p>
+    <p>Backend health: {health.status}</p>
+    <p>DB health: {health.db}</p>
+
+    <h3>Users</h3>
+    <ul>
+      {
+        users.map(
+          (u: {
+            id: number;
+            name: string;
+            email?: string;
+            username?: string;
+          }) => (
+            <li>
+              {u.id} - {u.name}
+              {u.username ? ` (@${u.username})` : ""}
+              {u.email ? ` (${u.email})` : ""}
+            </li>
+          ),
+        )
+      }
+    </ul>
+  </SignedIn>
+</Layout>
