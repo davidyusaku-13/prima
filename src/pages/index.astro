@@ -32,6 +32,8 @@ const users = await fetch(`${apiUrl}/users`)
                         (u: {
                             clerk_id: string;
                             name: string;
+                            first_name: string;
+                            last_name: string;
                             email: string;
                             username: string;
                             role: string;
