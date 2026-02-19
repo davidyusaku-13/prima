@@ -1,10 +1,10 @@
 ---
 import {
-  SignedIn,
-  SignedOut,
-  UserButton,
-  SignInButton,
-  SignUpButton,
+    SignedIn,
+    SignedOut,
+    UserButton,
+    SignInButton,
+    SignUpButton,
 } from "@clerk/astro/components";
 
 import "@/styles/global.css";
@@ -12,34 +12,111 @@ import "@/styles/global.css";
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="generator" content={Astro.generator} />
-    <title>Astro Basics</title>
-  </head>
-  <body>
-    <header>
-      {/* Show the sign-in and sign-up buttons when the user is signed out */}
-      <SignedOut>
-        <SignInButton mode="modal" />
-        <SignUpButton mode="modal" />
-      </SignedOut>
-      {/* Show the user button when the user is signed in */}
-      <SignedIn>
-        <UserButton />
-      </SignedIn>
-    </header>
-    <slot />
-  </body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="generator" content={Astro.generator} />
+        <title>Astro Basics</title>
+    </head>
+    <body>
+        <header class="topbar">
+            <div class="auth-actions">
+                {
+                    /* Show the sign-in and sign-up buttons when the user is signed out */
+                }
+                <SignedOut>
+                    <SignInButton
+                        mode="modal"
+                        class="auth-btn auth-btn-secondary"
+                        set:text={"Login"}
+                    />
+                    <SignUpButton
+                        mode="modal"
+                        class="auth-btn auth-btn-primary"
+                        set:text={"Create account"}
+                    />
+                </SignedOut>
+                {/* Show the user button when the user is signed in */}
+                <SignedIn>
+                    <UserButton />
+                </SignedIn>
+            </div>
+        </header>
+        <main class="page-shell">
+            <slot />
+        </main>
+    </body>
 </html>
 
 <style>
-  html,
-  body {
-    margin: 0;
-    width: 100%;
-    height: 100%;
-  }
+    html,
+    body {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: linear-gradient(180deg, #f6f8fc 0%, #eef4ff 100%);
+        color: #1f2937;
+    }
+
+    .topbar {
+        display: flex;
+        justify-content: flex-end;
+        padding: 1rem clamp(1rem, 3vw, 2rem) 0;
+    }
+
+    .auth-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .auth-btn {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 0.55rem 0.95rem;
+        font:
+            600 0.9rem/1 "Avenir Next",
+            "Segoe UI",
+            sans-serif;
+        cursor: pointer;
+        transition:
+            transform 120ms ease,
+            box-shadow 120ms ease,
+            background-color 120ms ease;
+    }
+
+    .auth-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .auth-btn:active {
+        transform: translateY(0);
+    }
+
+    .auth-btn-secondary {
+        background: #ffffff;
+        border-color: #d6e2f7;
+        color: #27436f;
+    }
+
+    .auth-btn-secondary:hover {
+        box-shadow: 0 8px 20px rgba(39, 67, 111, 0.12);
+    }
+
+    .auth-btn-primary {
+        background: linear-gradient(135deg, #2f76df 0%, #255fc2 100%);
+        color: #ffffff;
+    }
+
+    .auth-btn-primary:hover {
+        box-shadow: 0 10px 24px rgba(37, 95, 194, 0.28);
+    }
+
+    .page-shell {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 1.25rem clamp(1rem, 3vw, 2rem) 2rem;
+    }
 </style>

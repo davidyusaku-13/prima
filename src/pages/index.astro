@@ -5,42 +5,88 @@ import { SignedIn, SignedOut } from "@clerk/astro/components";
 const apiUrl = import.meta.env.API_URL ?? "http://localhost:8080";
 
 const health = await fetch(`${apiUrl}/health`)
-  .then((r) => r.json())
-  .catch(() => ({ status: "down", db: "down" }));
+    .then((r) => r.json())
+    .catch(() => ({ status: "down", db: "down" }));
 
 const users = await fetch(`${apiUrl}/users`)
-  .then((r) => (r.ok ? r.json() : []))
-  .catch(() => []);
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => []);
 ---
 
 <Layout title="Clerk + Astro + PostgreSQL">
-  <SignedOut>
-    <p>Sign in to try Clerk out!</p>
-  </SignedOut>
+    <section class="panel">
+        <SignedOut>
+            <h1>Welcome</h1>
+            <p>Sign in to try Clerk out!</p>
+        </SignedOut>
 
-  <SignedIn>
-    <p>You are signed in!</p>
-    <p>Backend health: {health.status}</p>
-    <p>DB health: {health.db}</p>
+        <SignedIn>
+            <h1>You are signed in!</h1>
+            <p class="status-line">Backend health: <strong>{health.status}</strong></p>
+            <p class="status-line">DB health: <strong>{health.db}</strong></p>
 
-    <h3>Users</h3>
-    <ul>
-      {
-        users.map(
-          (u: {
-            id: number;
-            name: string;
-            email?: string;
-            username?: string;
-          }) => (
-            <li>
-              {u.id} - {u.name}
-              {u.username ? ` (@${u.username})` : ""}
-              {u.email ? ` (${u.email})` : ""}
-            </li>
-          ),
-        )
-      }
-    </ul>
-  </SignedIn>
+            <h3>Users</h3>
+            <ul class="user-list">
+                {
+                    users.map(
+                        (u: {
+                            id: number;
+                            name: string;
+                            email?: string;
+                            username?: string;
+                        }) => (
+                            <li>
+                                {u.id} - {u.name}
+                                {u.username ? ` (@${u.username})` : ""}
+                                {u.email ? ` (${u.email})` : ""}
+                            </li>
+                        ),
+                    )
+                }
+            </ul>
+        </SignedIn>
+    </section>
 </Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 {
+        margin: 0 0 0.5rem;
+        font-size: clamp(1.25rem, 3vw, 1.6rem);
+        line-height: 1.25;
+    }
+
+    p {
+        margin: 0.4rem 0;
+    }
+
+    .status-line {
+        color: #374151;
+    }
+
+    h3 {
+        margin: 1rem 0 0.55rem;
+    }
+
+    .user-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .user-list li {
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #e4ecfb;
+        border-radius: 10px;
+        background: #f8fbff;
+    }
+</style>

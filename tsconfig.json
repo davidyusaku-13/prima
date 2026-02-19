@@ -5,8 +5,8 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
     },
-    "types": ["node", "astro/client"]
-  }
+    "types": ["node", "astro/client"],
+  },
 }
