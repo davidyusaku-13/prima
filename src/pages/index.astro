@@ -30,15 +30,20 @@ const users = await fetch(`${apiUrl}/users`)
                 {
                     users.map(
                         (u: {
-                            id: number;
+                            clerk_id: string;
                             name: string;
-                            email?: string;
-                            username?: string;
+                            email: string;
+                            username: string;
+                            role: string;
+                            is_active: boolean;
+                            created_at: string;
                         }) => (
                             <li>
-                                {u.id} - {u.name}
-                                {u.username ? ` (@${u.username})` : ""}
-                                {u.email ? ` (${u.email})` : ""}
+                                <span class="user-name">{u.name}</span>
+                                {u.username ? <span class="user-username"> @{u.username}</span> : ""}
+                                {u.email ? <span class="user-email"> &lt;{u.email}&gt;</span> : ""}
+                                <span class={`user-role role-${u.role}`}>{u.role}</span>
+                                {!u.is_active && <span class="user-inactive">inactive</span>}
                             </li>
                         ),
                     )
@@ -88,5 +93,48 @@ const users = await fetch(`${apiUrl}/users`)
         border: 1px solid #e4ecfb;
         border-radius: 10px;
         background: #f8fbff;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .user-name {
+        font-weight: 600;
+    }
+
+    .user-username {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .user-email {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .user-role {
+        margin-left: auto;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #e0e7ff;
+        color: #3730a3;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .user-role.role-superadmin {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .user-inactive {
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #fee2e2;
+        color: #991b1b;
     }
 </style>
