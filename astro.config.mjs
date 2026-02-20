@@ -6,6 +6,10 @@ import node from "@astrojs/node";
 import clerk from "@clerk/astro";
 
 export default defineConfig({
+  server: {
+    host: true,
+    allowedHosts: ["tuf-pc.tail977401.ts.net"],
+  },
   integrations: [clerk()],
   adapter: node({ mode: "standalone" }),
   output: "server",
