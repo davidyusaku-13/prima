@@ -8,9 +8,29 @@ const health = await fetch(`${apiUrl}/health`)
     .then((r) => r.json())
     .catch(() => ({ status: "down", db: "down" }));
 
-const users = await fetch(`${apiUrl}/users`)
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []);
+// Get the Clerk session token server-side and forward it to the backend.
+// clerkMiddleware sets Astro.locals.authToken; it is null when not signed in.
+const token = Astro.locals.authToken;
+
+let users: {
+    clerk_id: string;
+    name: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    username: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+}[] = [];
+
+if (token) {
+    users = await fetch(`${apiUrl}/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []);
+}
 ---
 
 <Layout title="Clerk + Astro + PostgreSQL">
@@ -28,18 +48,7 @@ const users = await fetch(`${apiUrl}/users`)
             <h3>Users</h3>
             <ul class="user-list">
                 {
-                    users.map(
-                        (u: {
-                            clerk_id: string;
-                            name: string;
-                            first_name: string;
-                            last_name: string;
-                            email: string;
-                            username: string;
-                            role: string;
-                            is_active: boolean;
-                            created_at: string;
-                        }) => (
+                    users.map((u) => (
                             <li>
                                 <span class="user-name">{u.name}</span>
                                 {u.username ? <span class="user-username"> @{u.username}</span> : ""}
