@@ -8,29 +8,6 @@ const health = await fetch(`${apiUrl}/health`)
     .then((r) => r.json())
     .catch(() => ({ status: "down", db: "down" }));
 
-// Get the Clerk session token server-side and forward it to the backend.
-// clerkMiddleware sets Astro.locals.authToken; it is null when not signed in.
-const token = Astro.locals.authToken;
-
-let users: {
-    clerk_id: string;
-    name: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    username: string;
-    role: string;
-    is_active: boolean;
-    created_at: string;
-}[] = [];
-
-if (token) {
-    users = await fetch(`${apiUrl}/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-    })
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => []);
-}
 ---
 
 <Layout title="Clerk + Astro + PostgreSQL">
@@ -44,22 +21,9 @@ if (token) {
             <h1>You are signed in!</h1>
             <p class="status-line">Backend health: <strong>{health.status}</strong></p>
             <p class="status-line">DB health: <strong>{health.db}</strong></p>
-
-            <h3>Users</h3>
-            <ul class="user-list">
-                {
-                    users.map((u) => (
-                            <li>
-                                <span class="user-name">{u.name}</span>
-                                {u.username ? <span class="user-username"> @{u.username}</span> : ""}
-                                {u.email ? <span class="user-email"> &lt;{u.email}&gt;</span> : ""}
-                                <span class={`user-role role-${u.role}`}>{u.role}</span>
-                                {!u.is_active && <span class="user-inactive">inactive</span>}
-                            </li>
-                        ),
-                    )
-                }
-            </ul>
+            <p class="status-line">
+                Admin area: <a href="/admin">open /admin</a>
+            </p>
         </SignedIn>
     </section>
 </Layout>
@@ -87,65 +51,13 @@ if (token) {
         color: #374151;
     }
 
-    h3 {
-        margin: 1rem 0 0.55rem;
-    }
-
-    .user-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        gap: 0.55rem;
-    }
-
-    .user-list li {
-        padding: 0.65rem 0.75rem;
-        border: 1px solid #e4ecfb;
-        border-radius: 10px;
-        background: #f8fbff;
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-    }
-
-    .user-name {
+    .status-line a {
+        color: #1d4ed8;
+        text-decoration: none;
         font-weight: 600;
     }
 
-    .user-username {
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .user-email {
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .user-role {
-        margin-left: auto;
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 0.15rem 0.5rem;
-        border-radius: 999px;
-        background: #e0e7ff;
-        color: #3730a3;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .user-role.role-superadmin {
-        background: #fef3c7;
-        color: #92400e;
-    }
-
-    .user-inactive {
-        font-size: 0.75rem;
-        padding: 0.15rem 0.5rem;
-        border-radius: 999px;
-        background: #fee2e2;
-        color: #991b1b;
+    .status-line a:hover {
+        text-decoration: underline;
     }
 </style>

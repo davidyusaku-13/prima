@@ -1,0 +1,143 @@
+---
+import Layout from "../../layouts/Layout.astro";
+
+const apiUrl = import.meta.env.API_URL ?? "http://localhost:8080";
+const token = Astro.locals.authToken;
+
+let users: {
+    clerk_id: string;
+    name: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    username: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+}[] = [];
+
+if (token) {
+    users = await fetch(`${apiUrl}/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []);
+}
+---
+
+<Layout title="Admin Users">
+    <section class="panel">
+        <h1>Admin Users</h1>
+        <p class="subhead">
+            <a href="/admin">Back to admin</a>
+        </p>
+
+        <h3>Users</h3>
+        <ul class="user-list">
+            {
+                users.map((u) => (
+                        <li>
+                            <span class="user-name">{u.name}</span>
+                            {u.username ? <span class="user-username"> @{u.username}</span> : ""}
+                            {u.email ? <span class="user-email"> &lt;{u.email}&gt;</span> : ""}
+                            <span class={`user-role role-${u.role}`}>{u.role}</span>
+                            {!u.is_active && <span class="user-inactive">inactive</span>}
+                        </li>
+                    ),
+                )
+            }
+        </ul>
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 {
+        margin: 0 0 0.5rem;
+        font-size: clamp(1.25rem, 3vw, 1.6rem);
+        line-height: 1.25;
+    }
+
+    .subhead {
+        margin: 0 0 0.85rem;
+    }
+
+    .subhead a {
+        color: #1d4ed8;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .subhead a:hover {
+        text-decoration: underline;
+    }
+
+    h3 {
+        margin: 0.7rem 0 0.55rem;
+    }
+
+    .user-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .user-list li {
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #e4ecfb;
+        border-radius: 10px;
+        background: #f8fbff;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .user-name {
+        font-weight: 600;
+    }
+
+    .user-username {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .user-email {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .user-role {
+        margin-left: auto;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #e0e7ff;
+        color: #3730a3;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .user-role.role-superadmin {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .user-inactive {
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #fee2e2;
+        color: #991b1b;
+    }
+</style>
