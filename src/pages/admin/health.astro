@@ -1,0 +1,63 @@
+---
+import Layout from "../../layouts/Layout.astro";
+
+const apiUrl = import.meta.env.API_URL ?? "http://localhost:8080";
+const token = Astro.locals.authToken;
+
+const fallbackHealth = { status: "down", db: "down" };
+
+const health = token
+    ? await fetch(`${apiUrl}/admin/health`, {
+          headers: { Authorization: `Bearer ${token}` },
+      })
+          .then((r) => (r.ok ? r.json() : fallbackHealth))
+          .catch(() => fallbackHealth)
+    : fallbackHealth;
+---
+
+<Layout title="Admin Health">
+    <section class="panel">
+        <h1>Admin Health</h1>
+        <p class="subhead">
+            <a href="/admin">Back to admin</a>
+        </p>
+
+        <p class="status-line">Backend health: <strong>{health.status}</strong></p>
+        <p class="status-line">DB health: <strong>{health.db}</strong></p>
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 {
+        margin: 0 0 0.5rem;
+        font-size: clamp(1.25rem, 3vw, 1.6rem);
+        line-height: 1.25;
+    }
+
+    .subhead {
+        margin: 0 0 0.85rem;
+    }
+
+    .subhead a {
+        color: #1d4ed8;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .subhead a:hover {
+        text-decoration: underline;
+    }
+
+    .status-line {
+        margin: 0.4rem 0;
+        color: #374151;
+    }
+</style>

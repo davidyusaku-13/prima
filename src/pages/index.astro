@@ -2,12 +2,6 @@
 import Layout from "../layouts/Layout.astro";
 import { SignedIn, SignedOut } from "@clerk/astro/components";
 
-const apiUrl = import.meta.env.API_URL ?? "http://localhost:8080";
-
-const health = await fetch(`${apiUrl}/health`)
-    .then((r) => r.json())
-    .catch(() => ({ status: "down", db: "down" }));
-
 ---
 
 <Layout title="Clerk + Astro + PostgreSQL">
@@ -19,8 +13,6 @@ const health = await fetch(`${apiUrl}/health`)
 
         <SignedIn>
             <h1>You are signed in!</h1>
-            <p class="status-line">Backend health: <strong>{health.status}</strong></p>
-            <p class="status-line">DB health: <strong>{health.db}</strong></p>
             <p class="status-line">
                 Admin area: <a href="/admin">open /admin</a>
             </p>
