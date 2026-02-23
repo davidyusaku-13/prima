@@ -1,0 +1,30 @@
+{
+	"name": "prima-frontend",
+	"workers_dev": true,
+	"preview_urls": false,
+	"main": "dist/_worker.js/index.js",
+	"compatibility_date": "2026-02-22",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist"
+	},
+	"r2_buckets": [
+		{
+			"binding": "PRIMA_BUCKET",
+			"bucket_name": "prima-bucket"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "SESSION",
+			"id": "fdc4a45a5cd54a4dbf338f5987671845"
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}
