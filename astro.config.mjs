@@ -11,7 +11,7 @@ export default defineConfig({
     allowedHosts: ["tuf-pc.tail977401.ts.net"],
   },
   integrations: [clerk()],
-  adapter: cloudflare(),
+  adapter: cloudflare({ imageService: "compile" }),
   output: "server",
   vite: {
     plugins: [tailwindcss()],

@@ -1,5 +1,13 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import { probeAdminAccess } from "../../utils/admin-api";
+
+const token = Astro.locals.authToken;
+const canAccess = await probeAdminAccess(token);
+
+if (!canAccess) {
+    return Astro.redirect("/");
+}
 ---
 
 <Layout title="Admin">

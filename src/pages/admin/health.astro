@@ -1,18 +1,17 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import { fetchAdminJson } from "../../utils/admin-api";
 
-const apiUrl = import.meta.env.API_URL ?? "http://localhost:8080";
 const token = Astro.locals.authToken;
 
 const fallbackHealth = { status: "down", db: "down" };
+const healthResult = await fetchAdminJson(token, "/admin/health", fallbackHealth);
 
-const health = token
-    ? await fetch(`${apiUrl}/admin/health`, {
-          headers: { Authorization: `Bearer ${token}` },
-      })
-          .then((r) => (r.ok ? r.json() : fallbackHealth))
-          .catch(() => fallbackHealth)
-    : fallbackHealth;
+if (healthResult.unauthorized) {
+    return Astro.redirect("/");
+}
+
+const health = healthResult.data;
 ---
 
 <Layout title="Admin Health">
