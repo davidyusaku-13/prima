@@ -16,10 +16,11 @@ const health = healthResult.data;
 
 <Layout title="Admin Health">
     <section class="panel">
-        <h1>Admin Health</h1>
-        <p class="subhead">
-            <a href="/admin">Back to admin</a>
-        </p>
+        <h1>Admin</h1>
+        <nav class="admin-tabs" aria-label="Admin tabs">
+            <a class="tab-link is-active" href="/admin/health">Health</a>
+            <a class="tab-link" href="/admin/users">Users</a>
+        </nav>
 
         <p class="status-line">Backend health: <strong>{health.status}</strong></p>
         <p class="status-line">DB health: <strong>{health.db}</strong></p>
@@ -41,18 +42,42 @@ const health = healthResult.data;
         line-height: 1.25;
     }
 
-    .subhead {
-        margin: 0 0 0.85rem;
+    .admin-tabs {
+        margin: 0 0 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        width: fit-content;
+        padding: 0.3rem;
+        border: 1px solid #c9d9f6;
+        border-radius: 999px;
+        background: #f3f7ff;
     }
 
-    .subhead a {
-        color: #1d4ed8;
+    .tab-link {
+        display: inline-block;
         text-decoration: none;
+        color: #27436f;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 0.4rem 0.8rem;
         font-weight: 600;
+        transition:
+            background-color 120ms ease,
+            color 120ms ease,
+            border-color 120ms ease;
     }
 
-    .subhead a:hover {
-        text-decoration: underline;
+    .tab-link:hover {
+        background: #e7efff;
+        border-color: #c4d5f5;
+        color: #1d3b66;
+    }
+
+    .tab-link.is-active {
+        background: #ffffff;
+        border-color: #bfd3f6;
+        color: #1f3f6f;
     }
 
     .status-line {

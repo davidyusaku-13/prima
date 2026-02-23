@@ -13,9 +13,6 @@ import { SignedIn, SignedOut } from "@clerk/astro/components";
 
         <SignedIn>
             <h1>You are signed in!</h1>
-            <p class="status-line">
-                Admin area: <a href="/admin">open /admin</a>
-            </p>
         </SignedIn>
     </section>
 </Layout>
@@ -39,17 +36,4 @@ import { SignedIn, SignedOut } from "@clerk/astro/components";
         margin: 0.4rem 0;
     }
 
-    .status-line {
-        color: #374151;
-    }
-
-    .status-line a {
-        color: #1d4ed8;
-        text-decoration: none;
-        font-weight: 600;
-    }
-
-    .status-line a:hover {
-        text-decoration: underline;
-    }
 </style>

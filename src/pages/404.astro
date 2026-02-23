@@ -1,0 +1,76 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="404 | PrimaCare">
+    <section class="not-found-panel">
+        <p class="error-code">404</p>
+        <h1>Halaman tidak ditemukan</h1>
+        <p class="message">
+            Maaf, halaman yang kamu cari tidak tersedia atau URL-nya tidak valid.
+        </p>
+
+        <div class="actions">
+            <a class="action-link" href="/">Kembali ke Beranda</a>
+        </div>
+    </section>
+</Layout>
+
+<style>
+    :global(main.page-shell) {
+        display: grid;
+        min-height: calc(100vh - 2rem);
+    }
+
+    .not-found-panel {
+        place-self: center;
+        width: min(760px, 100%);
+        max-width: 760px;
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1.2rem, 2.6vw, 2rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .error-code {
+        margin: 0;
+        font-size: 0.85rem;
+        letter-spacing: 0.12em;
+        font-weight: 700;
+        color: #2f76df;
+    }
+
+    h1 {
+        margin: 0.35rem 0 0.65rem;
+        font-size: clamp(1.4rem, 3vw, 2rem);
+        line-height: 1.2;
+        color: #163560;
+    }
+
+    .message {
+        margin: 0;
+        color: #4b5563;
+        line-height: 1.55;
+    }
+
+    .actions {
+        margin-top: 1rem;
+    }
+
+    .action-link {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        font-weight: 600;
+        color: #1f4f97;
+        background: #e9f0fd;
+        border: 1px solid #c9d9f6;
+        border-radius: 999px;
+        padding: 0.45rem 0.9rem;
+    }
+
+    .action-link:hover {
+        background: #dfe9fb;
+    }
+</style>

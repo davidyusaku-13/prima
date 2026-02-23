@@ -8,6 +8,25 @@ import {
 } from "@clerk/astro/components";
 
 import "@/styles/global.css";
+
+const isAdminRoute =
+    Astro.url.pathname === "/admin" || Astro.url.pathname.startsWith("/admin/");
+
+const pathname = Astro.url.pathname;
+const isHomeRoute = pathname === "/";
+const isFullWidthRoute = isHomeRoute || pathname === "/admin";
+const navLinks = [
+    { href: "/", label: "Beranda" },
+    { href: "/pasien", label: "Pasien" },
+    { href: "/berita", label: "Berita" },
+    { href: "/video-edukasi", label: "Video Edukasi" },
+    { href: "/admin", label: "Admin" },
+];
+
+const isNavActive = (href: string) =>
+    href === "/"
+        ? pathname === "/"
+        : pathname === href || pathname.startsWith(`${href}/`);
 ---
 
 <!doctype html>
@@ -17,35 +36,73 @@ import "@/styles/global.css";
         <meta name="viewport" content="width=device-width" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <meta name="generator" content={Astro.generator} />
+        <script
+            is:inline
+            src="https://kit.fontawesome.com/ec712a3d01.js"
+            crossorigin="anonymous"
+        ></script>
         <title>Astro Basics</title>
     </head>
     <body>
-        <header class="topbar">
-            <div class="auth-actions">
-                {
-                    /* Show the sign-in and sign-up buttons when the user is signed out */
-                }
-                <SignedOut>
-                    <SignInButton
-                        mode="modal"
-                        class="auth-btn auth-btn-secondary"
-                        set:text={"Login"}
-                    />
-                    <SignUpButton
-                        mode="modal"
-                        class="auth-btn auth-btn-primary"
-                        set:text={"Create account"}
-                    />
-                </SignedOut>
-                {/* Show the user button when the user is signed in */}
-                <SignedIn>
-                    <UserButton />
-                </SignedIn>
-            </div>
-        </header>
-        <main class="page-shell">
-            <slot />
-        </main>
+        <div class="app-layout">
+            <aside class="sidebar">
+                <a class="brand" href="/" aria-label="Go to home page">
+                    <span class="brand-logo" aria-hidden="true">
+                        <i class="fa-solid fa-heart-pulse"></i>
+                    </span>
+                    <span class="brand-text">PrimaCare</span>
+                </a>
+
+                <nav class="main-nav" aria-label="Main navigation">
+                    {
+                        navLinks.map((item) => (
+                            <a
+                                href={item.href}
+                                class:list={["nav-link", { "is-active": isNavActive(item.href) }]}
+                            >
+                                {item.label}
+                            </a>
+                        ))
+                    }
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div class="auth-actions">
+                        {
+                            /* Show the sign-in and sign-up buttons when the user is signed out */
+                        }
+                        <SignedOut>
+                            <SignInButton
+                                mode="modal"
+                                class="auth-btn auth-btn-secondary"
+                                set:text={"Login"}
+                            />
+                            <SignUpButton
+                                mode="modal"
+                                class="auth-btn auth-btn-primary"
+                                set:text={"Create account"}
+                            />
+                        </SignedOut>
+                        {/* Show the user button when the user is signed in */}
+                        <SignedIn>
+                            <UserButton />
+                        </SignedIn>
+                    </div>
+                </div>
+
+            </aside>
+            <main
+                class:list={[
+                    "page-shell",
+                    {
+                        "page-shell-wide": isAdminRoute,
+                        "page-shell-full": isFullWidthRoute,
+                    },
+                ]}
+            >
+                <slot />
+            </main>
+        </div>
     </body>
 </html>
 
@@ -60,16 +117,140 @@ import "@/styles/global.css";
         color: #1f2937;
     }
 
-    .topbar {
+    .app-layout {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .sidebar {
+        position: sticky;
+        top: 1rem;
+        align-self: start;
+        min-height: calc(100vh - 2rem);
         display: flex;
-        justify-content: flex-end;
-        padding: 1rem clamp(1rem, 3vw, 2rem) 0;
+        flex-direction: column;
+        padding: 0.95rem;
+        border: 1px solid #d7e3f7;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.85);
+        box-shadow: 0 10px 24px rgba(39, 67, 111, 0.08);
+        backdrop-filter: blur(6px);
+    }
+
+    .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        text-decoration: none;
+        color: #163560;
+        white-space: nowrap;
+    }
+
+    .brand-logo {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+        color: #ffffff;
+        background: linear-gradient(135deg, #2f76df 0%, #255fc2 100%);
+        box-shadow: 0 8px 16px rgba(37, 95, 194, 0.28);
+    }
+
+    .brand-text {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+
+    .main-nav {
+        margin-top: 1rem;
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    .nav-link {
+        display: block;
+        text-decoration: none;
+        color: #27436f;
+        font-weight: 600;
+        border-radius: 0.7rem;
+        padding: 0.55rem 0.7rem;
+        transition:
+            background-color 120ms ease,
+            color 120ms ease,
+            border-color 120ms ease;
+        border: 1px solid transparent;
+    }
+
+    .nav-link:hover {
+        background: #e9f0fd;
+        color: #1b3559;
+        border-color: #d0def6;
+    }
+
+    .nav-link.is-active {
+        background: #e4eefc;
+        color: #12315c;
+        border-color: #b8cdf0;
+    }
+
+    .sidebar-footer {
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid #dee7f8;
     }
 
     .auth-actions {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 0.75rem;
+    }
+
+    @media (max-width: 940px) {
+        .app-layout {
+            grid-template-columns: 220px minmax(0, 1fr);
+        }
+    }
+
+    @media (max-width: 760px) {
+        .app-layout {
+            grid-template-columns: 1fr;
+            padding: 0.75rem;
+        }
+
+        .sidebar {
+            position: static;
+            min-height: auto;
+        }
+
+        .main-nav {
+            width: 100%;
+            margin-top: 0.85rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .sidebar-footer {
+            margin-top: 0.85rem;
+            padding-top: 0.85rem;
+        }
+    }
+
+    @media (max-width: 520px) {
+        .main-nav {
+            grid-template-columns: 1fr;
+        }
+
+        .auth-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
     }
 
     :global([data-clerk-id^="clerk-user-button-"]) {
@@ -142,6 +323,15 @@ import "@/styles/global.css";
     .page-shell {
         max-width: 760px;
         margin: 0 auto;
-        padding: 1.25rem clamp(1rem, 3vw, 2rem) 2rem;
+        padding: 0;
+    }
+
+    .page-shell-wide {
+        max-width: 1100px;
+    }
+
+    .page-shell-full {
+        max-width: none;
+        margin: 0;
     }
 </style>
