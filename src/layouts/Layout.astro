@@ -14,13 +14,12 @@ const isAdminRoute =
 
 const pathname = Astro.url.pathname;
 const isHomeRoute = pathname === "/";
-const isFullWidthRoute = isHomeRoute || pathname === "/admin";
+const isFullWidthRoute = isHomeRoute || isAdminRoute;
 const navLinks = [
-    { href: "/", label: "Beranda" },
-    { href: "/pasien", label: "Pasien" },
-    { href: "/berita", label: "Berita" },
-    { href: "/video-edukasi", label: "Video Edukasi" },
-    { href: "/admin", label: "Admin" },
+    { href: "/", label: "Beranda", icon: "fa-house" },
+    { href: "/pasien", label: "Pasien", icon: "fa-hospital-user" },
+    { href: "/berita", label: "Berita", icon: "fa-newspaper" },
+    { href: "/video-edukasi", label: "Video Edukasi", icon: "fa-circle-play" },
 ];
 
 const isNavActive = (href: string) =>
@@ -41,17 +40,38 @@ const isNavActive = (href: string) =>
             src="https://kit.fontawesome.com/ec712a3d01.js"
             crossorigin="anonymous"
         ></script>
+        <script is:inline>
+            (() => {
+                try {
+                    if (localStorage.getItem("prima_sidebar_state") === "collapsed") {
+                        document.documentElement.classList.add("sidebar-collapsed");
+                    }
+                } catch {}
+            })();
+        </script>
         <title>Astro Basics</title>
     </head>
     <body>
         <div class="app-layout">
             <aside class="sidebar">
-                <a class="brand" href="/" aria-label="Go to home page">
-                    <span class="brand-logo" aria-hidden="true">
-                        <i class="fa-solid fa-heart-pulse"></i>
-                    </span>
-                    <span class="brand-text">PrimaCare</span>
-                </a>
+                <div class="sidebar-header">
+                    <a class="brand" href="/" aria-label="Go to home page">
+                        <span class="brand-logo" aria-hidden="true">
+                            <i class="fa-solid fa-heart-pulse"></i>
+                        </span>
+                        <span class="brand-text">PrimaCare</span>
+                    </a>
+                    <button
+                        id="sidebar-toggle"
+                        class="sidebar-toggle"
+                        type="button"
+                        aria-label="Collapse sidebar"
+                        aria-expanded="true"
+                    >
+                        <i class="fa-solid fa-angles-left toggle-icon-expanded" aria-hidden="true"></i>
+                        <i class="fa-solid fa-angles-right toggle-icon-collapsed" aria-hidden="true"></i>
+                    </button>
+                </div>
 
                 <nav class="main-nav" aria-label="Main navigation">
                     {
@@ -59,11 +79,121 @@ const isNavActive = (href: string) =>
                             <a
                                 href={item.href}
                                 class:list={["nav-link", { "is-active": isNavActive(item.href) }]}
+                                title={item.label}
+                                aria-label={item.label}
                             >
-                                {item.label}
+                                <i class={`fa-solid ${item.icon} nav-link-icon`} aria-hidden="true"></i>
+                                <span class="nav-link-text">{item.label}</span>
                             </a>
                         ))
                     }
+
+                    <button
+                        id="admin-popover-trigger"
+                        class="admin-popover-trigger nav-link"
+                        type="button"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        title="Admin"
+                    >
+                        <i class="fa-solid fa-user-shield nav-link-icon" aria-hidden="true"></i>
+                        <span class="nav-link-text">Admin</span>
+                    </button>
+
+                    <div id="admin-popover" class="admin-popover" popover>
+                        <a
+                            href="/admin"
+                            class:list={[
+                                "admin-popover-link",
+                                { "is-active": pathname === "/admin" },
+                            ]}
+                            aria-current={pathname === "/admin" ? "page" : undefined}
+                        >
+                            <i class="fa-solid fa-gauge-high sub-nav-icon" aria-hidden="true"></i>
+                            <span>Overview</span>
+                        </a>
+                        <a
+                            href="/admin/health"
+                            class:list={[
+                                "admin-popover-link",
+                                { "is-active": pathname === "/admin/health" },
+                            ]}
+                            aria-current={pathname === "/admin/health" ? "page" : undefined}
+                        >
+                            <i class="fa-solid fa-heart-pulse sub-nav-icon" aria-hidden="true"></i>
+                            <span>Health</span>
+                        </a>
+                        <a
+                            href="/admin/users"
+                            class:list={[
+                                "admin-popover-link",
+                                { "is-active": pathname === "/admin/users" },
+                            ]}
+                            aria-current={pathname === "/admin/users" ? "page" : undefined}
+                        >
+                            <i class="fa-solid fa-users sub-nav-icon" aria-hidden="true"></i>
+                            <span>Users</span>
+                        </a>
+                    </div>
+
+                    <details id="admin-nav-group" class="nav-group" open={isAdminRoute}>
+                        <summary
+                            class:list={[
+                                "nav-link",
+                                "nav-group-summary",
+                                { "is-active": isAdminRoute },
+                            ]}
+                            title="Admin"
+                        >
+                            <span class="nav-group-label">
+                                <i class="fa-solid fa-user-shield nav-link-icon" aria-hidden="true"></i>
+                                <span class="nav-link-text">Admin</span>
+                            </span>
+                            <i class="fa-solid fa-chevron-down nav-group-chevron" aria-hidden="true"></i>
+                        </summary>
+
+                        <div class="sub-nav" role="list" aria-label="Admin navigation">
+                            <a
+                                href="/admin"
+                                class:list={[
+                                    "sub-nav-link",
+                                    { "is-active": pathname === "/admin" },
+                                ]}
+                                aria-current={pathname === "/admin" ? "page" : undefined}
+                                title="Overview"
+                                aria-label="Overview"
+                            >
+                                <i class="fa-solid fa-gauge-high sub-nav-icon" aria-hidden="true"></i>
+                                <span class="sub-nav-text">Overview</span>
+                            </a>
+                            <a
+                                href="/admin/health"
+                                class:list={[
+                                    "sub-nav-link",
+                                    { "is-active": pathname === "/admin/health" },
+                                ]}
+                                aria-current={pathname === "/admin/health" ? "page" : undefined}
+                                title="Health"
+                                aria-label="Health"
+                            >
+                                <i class="fa-solid fa-heart-pulse sub-nav-icon" aria-hidden="true"></i>
+                                <span class="sub-nav-text">Health</span>
+                            </a>
+                            <a
+                                href="/admin/users"
+                                class:list={[
+                                    "sub-nav-link",
+                                    { "is-active": pathname === "/admin/users" },
+                                ]}
+                                aria-current={pathname === "/admin/users" ? "page" : undefined}
+                                title="Users"
+                                aria-label="Users"
+                            >
+                                <i class="fa-solid fa-users sub-nav-icon" aria-hidden="true"></i>
+                                <span class="sub-nav-text">Users</span>
+                            </a>
+                        </div>
+                    </details>
                 </nav>
 
                 <div class="sidebar-footer">
@@ -103,6 +233,126 @@ const isNavActive = (href: string) =>
                 <slot />
             </main>
         </div>
+        <script is:inline>
+            (() => {
+                const key = "prima_sidebar_state";
+                const root = document.documentElement;
+                const toggleButton = document.getElementById("sidebar-toggle");
+                const adminPopoverTrigger = document.getElementById("admin-popover-trigger");
+                const adminPopover = document.getElementById("admin-popover");
+
+                if (!toggleButton) {
+                    return;
+                }
+
+                const isDesktopCollapsed = () =>
+                    root.classList.contains("sidebar-collapsed") && window.innerWidth > 760;
+
+                const hideAdminPopover = () => {
+                    if (
+                        adminPopover &&
+                        "hidePopover" in adminPopover &&
+                        adminPopover.matches(":popover-open")
+                    ) {
+                        adminPopover.hidePopover();
+                    }
+
+                    if (adminPopoverTrigger) {
+                        adminPopoverTrigger.setAttribute("aria-expanded", "false");
+                    }
+                };
+
+                const placeAdminPopover = () => {
+                    if (!adminPopover || !adminPopoverTrigger) {
+                        return;
+                    }
+
+                    const triggerRect = adminPopoverTrigger.getBoundingClientRect();
+                    const popoverWidth = 190;
+                    const margin = 10;
+
+                    let left = triggerRect.right + 10;
+                    if (left + popoverWidth > window.innerWidth - margin) {
+                        left = triggerRect.left - popoverWidth - 10;
+                    }
+                    left = Math.max(margin, left);
+
+                    const top = Math.min(
+                        window.innerHeight - 160,
+                        Math.max(margin, triggerRect.top),
+                    );
+
+                    adminPopover.style.left = `${left}px`;
+                    adminPopover.style.top = `${top}px`;
+                };
+
+                const syncButtonState = () => {
+                    const collapsed = root.classList.contains("sidebar-collapsed");
+
+                    if (!isDesktopCollapsed()) {
+                        hideAdminPopover();
+                    }
+
+                    toggleButton.setAttribute("aria-expanded", String(!collapsed));
+                    toggleButton.setAttribute(
+                        "aria-label",
+                        collapsed ? "Expand sidebar" : "Collapse sidebar",
+                    );
+                };
+
+                syncButtonState();
+
+                toggleButton.addEventListener("click", () => {
+                    const collapsed = root.classList.toggle("sidebar-collapsed");
+                    try {
+                        localStorage.setItem(key, collapsed ? "collapsed" : "expanded");
+                    } catch {}
+                    syncButtonState();
+                });
+
+                if (
+                    adminPopover &&
+                    adminPopoverTrigger &&
+                    "showPopover" in adminPopover &&
+                    "hidePopover" in adminPopover
+                ) {
+                    adminPopoverTrigger.addEventListener("click", (event) => {
+                        if (!isDesktopCollapsed()) {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        if (adminPopover.matches(":popover-open")) {
+                            hideAdminPopover();
+                            return;
+                        }
+
+                        placeAdminPopover();
+                        adminPopover.showPopover();
+                        adminPopoverTrigger.setAttribute("aria-expanded", "true");
+                    });
+
+                    adminPopover.addEventListener("toggle", () => {
+                        adminPopoverTrigger.setAttribute(
+                            "aria-expanded",
+                            adminPopover.matches(":popover-open") ? "true" : "false",
+                        );
+                    });
+
+                    window.addEventListener("resize", () => {
+                        if (!isDesktopCollapsed()) {
+                            hideAdminPopover();
+                            return;
+                        }
+
+                        if (adminPopover.matches(":popover-open")) {
+                            placeAdminPopover();
+                        }
+                    });
+                }
+            })();
+        </script>
     </body>
 </html>
 
@@ -123,6 +373,7 @@ const isNavActive = (href: string) =>
         grid-template-columns: 260px minmax(0, 1fr);
         gap: 1rem;
         padding: 1rem;
+        transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .sidebar {
@@ -138,6 +389,46 @@ const isNavActive = (href: string) =>
         background: rgba(255, 255, 255, 0.85);
         box-shadow: 0 10px 24px rgba(39, 67, 111, 0.08);
         backdrop-filter: blur(6px);
+        overflow: visible;
+        transition: padding 220ms ease;
+    }
+
+    .sidebar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .sidebar-toggle {
+        width: 2rem;
+        height: 2rem;
+        border: 1px solid #d0def6;
+        border-radius: 0.6rem;
+        background: #eef4ff;
+        color: #365885;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition:
+            right 220ms ease,
+            width 220ms ease,
+            height 220ms ease,
+            transform 220ms ease,
+            box-shadow 220ms ease,
+            background-color 120ms ease,
+            border-color 120ms ease;
+        flex: none;
+    }
+
+    .sidebar-toggle:hover {
+        background: #e2edff;
+        border-color: #c3d6f7;
+    }
+
+    .toggle-icon-collapsed {
+        display: none;
     }
 
     .brand {
@@ -168,6 +459,21 @@ const isNavActive = (href: string) =>
         letter-spacing: 0.01em;
     }
 
+    .brand-text,
+    .nav-link-text,
+    .sub-nav-text {
+        display: inline-block;
+        white-space: nowrap;
+        overflow: hidden;
+        max-width: 180px;
+        opacity: 1;
+        transform: translateX(0);
+        transition:
+            opacity 150ms ease,
+            transform 220ms ease,
+            max-width 220ms ease;
+    }
+
     .main-nav {
         margin-top: 1rem;
         display: grid;
@@ -175,13 +481,17 @@ const isNavActive = (href: string) =>
     }
 
     .nav-link {
-        display: block;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
         text-decoration: none;
         color: #27436f;
         font-weight: 600;
         border-radius: 0.7rem;
         padding: 0.55rem 0.7rem;
+        width: 100%;
         transition:
+            padding 220ms ease,
             background-color 120ms ease,
             color 120ms ease,
             border-color 120ms ease;
@@ -198,6 +508,218 @@ const isNavActive = (href: string) =>
         background: #e4eefc;
         color: #12315c;
         border-color: #b8cdf0;
+    }
+
+    .nav-group {
+        margin-top: 0.15rem;
+    }
+
+    .admin-popover-trigger {
+        display: none;
+    }
+
+    .admin-popover {
+        margin: 0;
+        inset: auto;
+        border: 1px solid #cfdcf5;
+        border-radius: 0.75rem;
+        background: #ffffff;
+        box-shadow: 0 14px 30px rgba(24, 39, 72, 0.2);
+        padding: 0.35rem;
+        min-width: 180px;
+    }
+
+    .admin-popover::backdrop {
+        background: transparent;
+    }
+
+    .admin-popover-link {
+        display: inline-flex;
+        width: 100%;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        color: #244870;
+        border-radius: 0.55rem;
+        border: 1px solid transparent;
+        padding: 0.45rem 0.55rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .admin-popover-link:hover {
+        background: #edf3fe;
+        border-color: #d0def6;
+        color: #153b66;
+    }
+
+    .admin-popover-link.is-active {
+        background: #e5effd;
+        border-color: #c4d8f7;
+        color: #163662;
+    }
+
+    .nav-group-summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+    }
+
+    .nav-group-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .nav-group-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+
+    .nav-link-icon {
+        width: 0.95rem;
+        text-align: center;
+        color: #4f6890;
+    }
+
+    .nav-group-chevron {
+        font-size: 0.75rem;
+        color: #5b7293;
+        transition: transform 120ms ease;
+    }
+
+    .nav-group[open] .nav-group-chevron {
+        transform: rotate(180deg);
+    }
+
+    .sub-nav {
+        display: none;
+        gap: 0.3rem;
+        margin-top: 0.3rem;
+        margin-left: 0.4rem;
+        padding-left: 0.65rem;
+        border-left: 2px solid #d9e5fa;
+    }
+
+    .nav-group[open] .sub-nav {
+        display: grid;
+    }
+
+    .sub-nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.48rem;
+        text-decoration: none;
+        color: #35547f;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border-radius: 0.6rem;
+        padding: 0.42rem 0.6rem;
+        border: 1px solid transparent;
+        transition:
+            background-color 120ms ease,
+            border-color 120ms ease,
+            color 120ms ease;
+    }
+
+    .sub-nav-link:hover {
+        background: #edf3fe;
+        border-color: #d0def6;
+        color: #1e3d69;
+    }
+
+    .sub-nav-link.is-active {
+        background: #e5effd;
+        border-color: #c4d8f7;
+        color: #163662;
+    }
+
+    .sub-nav-icon {
+        width: 0.85rem;
+        text-align: center;
+        color: #5d7395;
+        font-size: 0.78rem;
+    }
+
+    :global(html.sidebar-collapsed) .app-layout {
+        grid-template-columns: 84px minmax(0, 1fr);
+    }
+
+    :global(html.sidebar-collapsed) .sidebar {
+        padding: 0.85rem 0.55rem;
+    }
+
+    :global(html.sidebar-collapsed) .sidebar-header {
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    :global(html.sidebar-collapsed) .brand {
+        justify-content: center;
+        width: 100%;
+    }
+
+    :global(html.sidebar-collapsed) .brand-text,
+    :global(html.sidebar-collapsed) .nav-link-text,
+    :global(html.sidebar-collapsed) .sub-nav-text {
+        max-width: 0;
+        opacity: 0;
+        transform: translateX(-4px);
+    }
+
+    :global(html.sidebar-collapsed) .nav-link,
+    :global(html.sidebar-collapsed) .nav-group-summary {
+        justify-content: center;
+        padding: 0.55rem 0.45rem;
+    }
+
+    :global(html.sidebar-collapsed) .nav-group-label {
+        justify-content: center;
+    }
+
+    :global(html.sidebar-collapsed) .nav-group {
+        display: none;
+    }
+
+    :global(html.sidebar-collapsed) .admin-popover-trigger {
+        display: inline-flex;
+        justify-content: center;
+        padding: 0.55rem 0.45rem;
+    }
+
+    :global(html.sidebar-collapsed) .sidebar-toggle {
+        position: absolute;
+        top: 1rem;
+        right: -0.8rem;
+        width: 1.7rem;
+        height: 1.7rem;
+        border-radius: 999px;
+        border-color: #b7cdf3;
+        background: #f2f7ff;
+        box-shadow: 0 8px 16px rgba(30, 56, 99, 0.18);
+        z-index: 3;
+    }
+
+    :global(html.sidebar-collapsed) .sidebar-footer {
+        padding-top: 0.7rem;
+    }
+
+    :global(html.sidebar-collapsed) .auth-actions {
+        justify-content: center;
+    }
+
+    :global(html.sidebar-collapsed) :global(.auth-btn) {
+        display: none;
+    }
+
+    :global(html.sidebar-collapsed) .toggle-icon-expanded {
+        display: none;
+    }
+
+    :global(html.sidebar-collapsed) .toggle-icon-collapsed {
+        display: inline-block;
     }
 
     .sidebar-footer {
@@ -225,6 +747,66 @@ const isNavActive = (href: string) =>
             padding: 0.75rem;
         }
 
+        .sidebar-toggle {
+            display: none;
+        }
+
+        :global(html.sidebar-collapsed) .app-layout {
+            grid-template-columns: 1fr;
+        }
+
+        :global(html.sidebar-collapsed) .sidebar {
+            padding: 0.95rem;
+        }
+
+        :global(html.sidebar-collapsed) .sidebar-header {
+            flex-direction: row;
+        }
+
+        :global(html.sidebar-collapsed) .brand {
+            justify-content: flex-start;
+        }
+
+        :global(html.sidebar-collapsed) .brand-text,
+        :global(html.sidebar-collapsed) .nav-link-text,
+        :global(html.sidebar-collapsed) .sub-nav-text {
+            max-width: 180px;
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        :global(html.sidebar-collapsed) .nav-link,
+        :global(html.sidebar-collapsed) .nav-group-summary {
+            justify-content: flex-start;
+            padding: 0.55rem 0.7rem;
+        }
+
+        :global(html.sidebar-collapsed) .nav-group-label {
+            justify-content: flex-start;
+        }
+
+        :global(html.sidebar-collapsed) .nav-group {
+            display: block;
+        }
+
+        :global(html.sidebar-collapsed) .admin-popover-trigger {
+            display: none;
+        }
+
+        :global(html.sidebar-collapsed) .sub-nav {
+            margin-left: 0.4rem;
+            padding-left: 0.65rem;
+            border-left: 2px solid #d9e5fa;
+        }
+
+        :global(html.sidebar-collapsed) .nav-group[open] .sub-nav {
+            display: grid;
+        }
+
+        :global(html.sidebar-collapsed) :global(.auth-btn) {
+            display: inline-flex;
+        }
+
         .sidebar {
             position: static;
             min-height: auto;
@@ -250,6 +832,18 @@ const isNavActive = (href: string) =>
         .auth-actions {
             width: 100%;
             justify-content: flex-start;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .app-layout,
+        .sidebar,
+        .sidebar-toggle,
+        .nav-link,
+        .brand-text,
+        .nav-link-text,
+        .sub-nav-text {
+            transition: none;
         }
     }
 
