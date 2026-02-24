@@ -432,12 +432,14 @@ const isNavActive = (href: string) =>
     }
 
     .brand {
-        display: inline-flex;
+        display: inline-grid;
+        grid-template-columns: 2rem 1fr;
         align-items: center;
         gap: 0.55rem;
         text-decoration: none;
         color: #163560;
         white-space: nowrap;
+        transition: grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .brand-logo {
@@ -462,16 +464,11 @@ const isNavActive = (href: string) =>
     .brand-text,
     .nav-link-text,
     .sub-nav-text {
-        display: inline-block;
         white-space: nowrap;
         overflow: hidden;
-        max-width: 180px;
+        min-width: 0;
         opacity: 1;
-        transform: translateX(0);
-        transition:
-            opacity 150ms ease,
-            transform 220ms ease,
-            max-width 220ms ease;
+        transition: opacity 180ms ease;
     }
 
     .main-nav {
@@ -481,7 +478,8 @@ const isNavActive = (href: string) =>
     }
 
     .nav-link {
-        display: inline-flex;
+        display: grid;
+        grid-template-columns: 0.95rem 1fr;
         align-items: center;
         gap: 0.55rem;
         text-decoration: none;
@@ -491,6 +489,7 @@ const isNavActive = (href: string) =>
         padding: 0.55rem 0.7rem;
         width: 100%;
         transition:
+            grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1),
             padding 220ms ease,
             background-color 120ms ease,
             color 120ms ease,
@@ -608,7 +607,8 @@ const isNavActive = (href: string) =>
     }
 
     .sub-nav-link {
-        display: inline-flex;
+        display: grid;
+        grid-template-columns: 0.85rem 1fr;
         align-items: center;
         gap: 0.48rem;
         text-decoration: none;
@@ -619,6 +619,7 @@ const isNavActive = (href: string) =>
         padding: 0.42rem 0.6rem;
         border: 1px solid transparent;
         transition:
+            grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1),
             background-color 120ms ease,
             border-color 120ms ease,
             color 120ms ease;
@@ -657,6 +658,7 @@ const isNavActive = (href: string) =>
     }
 
     :global(html.sidebar-collapsed) .brand {
+        grid-template-columns: 2rem 0fr;
         justify-content: center;
         width: 100%;
     }
@@ -664,12 +666,15 @@ const isNavActive = (href: string) =>
     :global(html.sidebar-collapsed) .brand-text,
     :global(html.sidebar-collapsed) .nav-link-text,
     :global(html.sidebar-collapsed) .sub-nav-text {
-        max-width: 0;
         opacity: 0;
-        transform: translateX(-4px);
     }
 
-    :global(html.sidebar-collapsed) .nav-link,
+    :global(html.sidebar-collapsed) .nav-link {
+        grid-template-columns: 0.95rem 0fr;
+        justify-content: center;
+        padding: 0.55rem 0.45rem;
+    }
+
     :global(html.sidebar-collapsed) .nav-group-summary {
         justify-content: center;
         padding: 0.55rem 0.45rem;
@@ -684,7 +689,8 @@ const isNavActive = (href: string) =>
     }
 
     :global(html.sidebar-collapsed) .admin-popover-trigger {
-        display: inline-flex;
+        display: grid;
+        grid-template-columns: 0.95rem 0fr;
         justify-content: center;
         padding: 0.55rem 0.45rem;
     }
@@ -764,18 +770,22 @@ const isNavActive = (href: string) =>
         }
 
         :global(html.sidebar-collapsed) .brand {
+            grid-template-columns: 2rem 1fr;
             justify-content: flex-start;
         }
 
         :global(html.sidebar-collapsed) .brand-text,
         :global(html.sidebar-collapsed) .nav-link-text,
         :global(html.sidebar-collapsed) .sub-nav-text {
-            max-width: 180px;
             opacity: 1;
-            transform: translateX(0);
         }
 
-        :global(html.sidebar-collapsed) .nav-link,
+        :global(html.sidebar-collapsed) .nav-link {
+            grid-template-columns: 0.95rem 1fr;
+            justify-content: start;
+            padding: 0.55rem 0.7rem;
+        }
+
         :global(html.sidebar-collapsed) .nav-group-summary {
             justify-content: flex-start;
             padding: 0.55rem 0.7rem;
@@ -839,7 +849,9 @@ const isNavActive = (href: string) =>
         .app-layout,
         .sidebar,
         .sidebar-toggle,
+        .brand,
         .nav-link,
+        .sub-nav-link,
         .brand-text,
         .nav-link-text,
         .sub-nav-text {
