@@ -6,6 +6,7 @@ import {
     SignInButton,
     SignUpButton,
 } from "@clerk/astro/components";
+import { probeAdminAccess } from "../utils/admin-api";
 
 import "@/styles/global.css";
 
@@ -26,6 +27,8 @@ const isNavActive = (href: string) =>
     href === "/"
         ? pathname === "/"
         : pathname === href || pathname.startsWith(`${href}/`);
+
+const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
 ---
 
 <!doctype html>
@@ -88,112 +91,142 @@ const isNavActive = (href: string) =>
                         ))
                     }
 
-                    <button
-                        id="admin-popover-trigger"
-                        class="admin-popover-trigger nav-link"
-                        type="button"
-                        aria-haspopup="menu"
-                        aria-expanded="false"
-                        title="Admin"
-                    >
-                        <i class="fa-solid fa-fw fa-user-shield nav-link-icon" aria-hidden="true"></i>
-                        <span class="nav-link-text">Admin</span>
-                    </button>
+                    {
+                        canAccessAdmin && (
+                            <>
+                                <button
+                                    id="admin-popover-trigger"
+                                    class="admin-popover-trigger nav-link"
+                                    type="button"
+                                    aria-haspopup="menu"
+                                    aria-expanded="false"
+                                    title="Admin"
+                                >
+                                    <i
+                                        class="fa-solid fa-fw fa-user-shield nav-link-icon"
+                                        aria-hidden="true"
+                                    ></i>
+                                    <span class="nav-link-text">Admin</span>
+                                </button>
 
-                    <div id="admin-popover" class="admin-popover" popover>
-                        <a
-                            href="/admin"
-                            class:list={[
-                                "admin-popover-link",
-                                { "is-active": pathname === "/admin" },
-                            ]}
-                            aria-current={pathname === "/admin" ? "page" : undefined}
-                        >
-                            <i class="fa-solid fa-fw fa-gauge-high sub-nav-icon" aria-hidden="true"></i>
-                            <span>Overview</span>
-                        </a>
-                        <a
-                            href="/admin/health"
-                            class:list={[
-                                "admin-popover-link",
-                                { "is-active": pathname === "/admin/health" },
-                            ]}
-                            aria-current={pathname === "/admin/health" ? "page" : undefined}
-                        >
-                            <i class="fa-solid fa-fw fa-heart-pulse sub-nav-icon" aria-hidden="true"></i>
-                            <span>Health</span>
-                        </a>
-                        <a
-                            href="/admin/users"
-                            class:list={[
-                                "admin-popover-link",
-                                { "is-active": pathname === "/admin/users" },
-                            ]}
-                            aria-current={pathname === "/admin/users" ? "page" : undefined}
-                        >
-                            <i class="fa-solid fa-fw fa-users sub-nav-icon" aria-hidden="true"></i>
-                            <span>Users</span>
-                        </a>
-                    </div>
+                                <div id="admin-popover" class="admin-popover" popover>
+                                    <a
+                                        href="/admin"
+                                        class:list={[
+                                            "admin-popover-link",
+                                            { "is-active": pathname === "/admin" },
+                                        ]}
+                                        aria-current={pathname === "/admin" ? "page" : undefined}
+                                    >
+                                        <i
+                                            class="fa-solid fa-fw fa-gauge-high sub-nav-icon"
+                                            aria-hidden="true"
+                                        ></i>
+                                        <span>Overview</span>
+                                    </a>
+                                    <a
+                                        href="/admin/health"
+                                        class:list={[
+                                            "admin-popover-link",
+                                            { "is-active": pathname === "/admin/health" },
+                                        ]}
+                                        aria-current={pathname === "/admin/health" ? "page" : undefined}
+                                    >
+                                        <i
+                                            class="fa-solid fa-fw fa-heart-pulse sub-nav-icon"
+                                            aria-hidden="true"
+                                        ></i>
+                                        <span>Health</span>
+                                    </a>
+                                    <a
+                                        href="/admin/users"
+                                        class:list={[
+                                            "admin-popover-link",
+                                            { "is-active": pathname === "/admin/users" },
+                                        ]}
+                                        aria-current={pathname === "/admin/users" ? "page" : undefined}
+                                    >
+                                        <i class="fa-solid fa-fw fa-users sub-nav-icon" aria-hidden="true"></i>
+                                        <span>Users</span>
+                                    </a>
+                                </div>
 
-                    <details id="admin-nav-group" class="nav-group" open={isAdminRoute}>
-                        <summary
-                            class:list={[
-                                "nav-link",
-                                "nav-group-summary",
-                                { "is-active": isAdminRoute },
-                            ]}
-                            title="Admin"
-                        >
-                            <span class="nav-group-label">
-                                <i class="fa-solid fa-fw fa-user-shield nav-link-icon" aria-hidden="true"></i>
-                                <span class="nav-link-text">Admin</span>
-                            </span>
-                            <i class="fa-solid fa-fw fa-chevron-down nav-group-chevron" aria-hidden="true"></i>
-                        </summary>
+                                <details id="admin-nav-group" class="nav-group" open={isAdminRoute}>
+                                    <summary
+                                        class:list={[
+                                            "nav-link",
+                                            "nav-group-summary",
+                                            { "is-active": isAdminRoute },
+                                        ]}
+                                        title="Admin"
+                                    >
+                                        <span class="nav-group-label">
+                                            <i
+                                                class="fa-solid fa-fw fa-user-shield nav-link-icon"
+                                                aria-hidden="true"
+                                            ></i>
+                                            <span class="nav-link-text">Admin</span>
+                                        </span>
+                                        <i
+                                            class="fa-solid fa-fw fa-chevron-down nav-group-chevron"
+                                            aria-hidden="true"
+                                        ></i>
+                                    </summary>
 
-                        <div class="sub-nav" role="list" aria-label="Admin navigation">
-                            <a
-                                href="/admin"
-                                class:list={[
-                                    "sub-nav-link",
-                                    { "is-active": pathname === "/admin" },
-                                ]}
-                                aria-current={pathname === "/admin" ? "page" : undefined}
-                                title="Overview"
-                                aria-label="Overview"
-                            >
-                                <i class="fa-solid fa-fw fa-gauge-high sub-nav-icon" aria-hidden="true"></i>
-                                <span class="sub-nav-text">Overview</span>
-                            </a>
-                            <a
-                                href="/admin/health"
-                                class:list={[
-                                    "sub-nav-link",
-                                    { "is-active": pathname === "/admin/health" },
-                                ]}
-                                aria-current={pathname === "/admin/health" ? "page" : undefined}
-                                title="Health"
-                                aria-label="Health"
-                            >
-                                <i class="fa-solid fa-fw fa-heart-pulse sub-nav-icon" aria-hidden="true"></i>
-                                <span class="sub-nav-text">Health</span>
-                            </a>
-                            <a
-                                href="/admin/users"
-                                class:list={[
-                                    "sub-nav-link",
-                                    { "is-active": pathname === "/admin/users" },
-                                ]}
-                                aria-current={pathname === "/admin/users" ? "page" : undefined}
-                                title="Users"
-                                aria-label="Users"
-                            >
-                                <i class="fa-solid fa-fw fa-users sub-nav-icon" aria-hidden="true"></i>
-                                <span class="sub-nav-text">Users</span>
-                            </a>
-                        </div>
-                    </details>
+                                    <div class="sub-nav" role="list" aria-label="Admin navigation">
+                                        <a
+                                            href="/admin"
+                                            class:list={[
+                                                "sub-nav-link",
+                                                { "is-active": pathname === "/admin" },
+                                            ]}
+                                            aria-current={pathname === "/admin" ? "page" : undefined}
+                                            title="Overview"
+                                            aria-label="Overview"
+                                        >
+                                            <i
+                                                class="fa-solid fa-fw fa-gauge-high sub-nav-icon"
+                                                aria-hidden="true"
+                                            ></i>
+                                            <span class="sub-nav-text">Overview</span>
+                                        </a>
+                                        <a
+                                            href="/admin/health"
+                                            class:list={[
+                                                "sub-nav-link",
+                                                { "is-active": pathname === "/admin/health" },
+                                            ]}
+                                            aria-current={pathname === "/admin/health" ? "page" : undefined}
+                                            title="Health"
+                                            aria-label="Health"
+                                        >
+                                            <i
+                                                class="fa-solid fa-fw fa-heart-pulse sub-nav-icon"
+                                                aria-hidden="true"
+                                            ></i>
+                                            <span class="sub-nav-text">Health</span>
+                                        </a>
+                                        <a
+                                            href="/admin/users"
+                                            class:list={[
+                                                "sub-nav-link",
+                                                { "is-active": pathname === "/admin/users" },
+                                            ]}
+                                            aria-current={pathname === "/admin/users" ? "page" : undefined}
+                                            title="Users"
+                                            aria-label="Users"
+                                        >
+                                            <i
+                                                class="fa-solid fa-fw fa-users sub-nav-icon"
+                                                aria-hidden="true"
+                                            ></i>
+                                            <span class="sub-nav-text">Users</span>
+                                        </a>
+                                    </div>
+                                </details>
+                            </>
+                        )
+                    }
                 </nav>
 
                 <div class="sidebar-footer">
@@ -204,13 +237,18 @@ const isNavActive = (href: string) =>
                         <SignedOut>
                             <SignInButton
                                 mode="modal"
-                                class="auth-btn auth-btn-secondary"
+                                class="auth-btn auth-btn-secondary auth-btn-text"
                                 set:text={"Login"}
                             />
                             <SignUpButton
                                 mode="modal"
-                                class="auth-btn auth-btn-primary"
+                                class="auth-btn auth-btn-primary auth-btn-text"
                                 set:text={"Create account"}
+                            />
+                            <SignInButton
+                                mode="modal"
+                                class="auth-btn auth-btn-secondary auth-btn-collapsed"
+                                set:text={"Login or create account"}
                             />
                         </SignedOut>
                         {/* Show the user button when the user is signed in */}
@@ -729,8 +767,12 @@ const isNavActive = (href: string) =>
         justify-content: center;
     }
 
-    :global(html.sidebar-collapsed) :global(.auth-btn) {
+    :global(html.sidebar-collapsed) :global(.auth-btn-text) {
         display: none;
+    }
+
+    :global(html.sidebar-collapsed) :global(.auth-btn-collapsed) {
+        display: inline-flex;
     }
 
     :global(html.sidebar-collapsed) .toggle-icon-expanded {
@@ -831,8 +873,12 @@ const isNavActive = (href: string) =>
             display: flex;
         }
 
-        :global(html.sidebar-collapsed) :global(.auth-btn) {
+        :global(html.sidebar-collapsed) :global(.auth-btn-text) {
             display: inline-flex;
+        }
+
+        :global(html.sidebar-collapsed) :global(.auth-btn-collapsed) {
+            display: none;
         }
 
         .sidebar {
@@ -925,6 +971,33 @@ const isNavActive = (href: string) =>
             background-color 120ms ease;
     }
 
+    .auth-btn-collapsed {
+        display: none;
+        width: 2.25rem;
+        height: 2.25rem;
+        padding: 0;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        font-size: 0;
+        line-height: 0;
+        color: transparent;
+        position: relative;
+    }
+
+    .auth-btn-collapsed::before {
+        content: "\f2f6";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 0.92rem;
+        line-height: 1;
+        color: #27436f;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
     .auth-btn:hover {
         transform: translateY(-1px);
     }
@@ -950,6 +1023,12 @@ const isNavActive = (href: string) =>
 
     .auth-btn-primary:hover {
         box-shadow: 0 10px 24px rgba(37, 95, 194, 0.28);
+    }
+
+    .auth-btn-collapsed.auth-btn-secondary,
+    .auth-btn-collapsed.auth-btn-secondary:hover,
+    .auth-btn-collapsed.auth-btn-secondary:active {
+        color: transparent;
     }
 
     .page-shell {
