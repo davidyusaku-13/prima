@@ -4,7 +4,21 @@ import { fetchAdminJson } from "../../utils/admin-api";
 
 const token = Astro.locals.authToken;
 
-const fallbackHealth = { status: "down", db: "down" };
+type AdminHealthPayload = {
+    status: string;
+    db: string;
+    started_at: string;
+    checked_at: string;
+    uptime_seconds: number;
+};
+
+const fallbackHealth: AdminHealthPayload = {
+    status: "down",
+    db: "down",
+    started_at: "",
+    checked_at: "",
+    uptime_seconds: 0,
+};
 const healthResult = await fetchAdminJson(token, "/admin/health", fallbackHealth);
 
 if (healthResult.unauthorized) {
@@ -12,6 +26,35 @@ if (healthResult.unauthorized) {
 }
 
 const health = healthResult.data;
+
+function formatUptime(totalSeconds: number): string {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const days = Math.floor(safeSeconds / 86400);
+    const hours = Math.floor((safeSeconds % 86400) / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0 || days > 0) parts.push(`${hours}h`);
+    if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+
+    return parts.join(" ");
+}
+
+function formatTimestamp(value: string): string {
+    if (!value) {
+        return "-";
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleString();
+}
 ---
 
 <Layout title="Admin Health">
@@ -21,6 +64,9 @@ const health = healthResult.data;
 
         <p class="status-line">Backend health: <strong>{health.status}</strong></p>
         <p class="status-line">DB health: <strong>{health.db}</strong></p>
+        <p class="status-line">Uptime: <strong>{formatUptime(health.uptime_seconds)}</strong></p>
+        <p class="status-line">Started at: <strong>{formatTimestamp(health.started_at)}</strong></p>
+        <p class="status-line">Last checked: <strong>{formatTimestamp(health.checked_at)}</strong></p>
     </section>
 </Layout>
 
