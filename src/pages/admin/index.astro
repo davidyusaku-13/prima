@@ -16,7 +16,7 @@ if (!canAccess) {
         <h1>Overview</h1>
         <p>Choose an area from the sidebar or use the shortcuts below.</p>
 
-        <div class="quick-grid">
+        <div class="quick-flex">
             <a class="quick-card" href="/admin/health">
                 <h2>Health</h2>
                 <p>Check backend and database availability.</p>
@@ -57,11 +57,16 @@ if (!canAccess) {
         margin: 0.4rem 0;
     }
 
-    .quick-grid {
+    .quick-flex {
         margin-top: 0.9rem;
-        display: grid;
+        display: flex;
+        flex-wrap: wrap;
         gap: 0.75rem;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .quick-flex > * {
+        flex: 1 1 calc(50% - 0.375rem);
+        min-width: 0;
     }
 
     .quick-card {
@@ -95,8 +100,8 @@ if (!canAccess) {
     }
 
     @media (max-width: 720px) {
-        .quick-grid {
-            grid-template-columns: 1fr;
+        .quick-flex > * {
+            flex-basis: 100%;
         }
     }
 </style>

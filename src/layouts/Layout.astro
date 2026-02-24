@@ -369,11 +369,10 @@ const isNavActive = (href: string) =>
 
     .app-layout {
         min-height: 100vh;
-        display: grid;
-        grid-template-columns: 260px minmax(0, 1fr);
+        display: flex;
+        align-items: flex-start;
         gap: 1rem;
         padding: 1rem;
-        transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .sidebar {
@@ -390,7 +389,12 @@ const isNavActive = (href: string) =>
         box-shadow: 0 10px 24px rgba(39, 67, 111, 0.08);
         backdrop-filter: blur(6px);
         overflow: visible;
-        transition: padding 220ms ease;
+        width: 260px;
+        flex: 0 0 260px;
+        transition:
+            width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+            flex-basis 260ms cubic-bezier(0.22, 1, 0.36, 1),
+            padding 220ms ease;
     }
 
     .sidebar-header {
@@ -432,14 +436,13 @@ const isNavActive = (href: string) =>
     }
 
     .brand {
-        display: inline-grid;
-        grid-template-columns: 2rem 1fr;
+        display: inline-flex;
         align-items: center;
         gap: 0.55rem;
         text-decoration: none;
         color: #163560;
         white-space: nowrap;
-        transition: grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1);
+        transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .brand-logo {
@@ -473,13 +476,13 @@ const isNavActive = (href: string) =>
 
     .main-nav {
         margin-top: 1rem;
-        display: grid;
+        display: flex;
+        flex-direction: column;
         gap: 0.35rem;
     }
 
     .nav-link {
-        display: grid;
-        grid-template-columns: 0.95rem 1fr;
+        display: flex;
         align-items: center;
         gap: 0.55rem;
         text-decoration: none;
@@ -489,7 +492,7 @@ const isNavActive = (href: string) =>
         padding: 0.55rem 0.7rem;
         width: 100%;
         transition:
-            grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1),
+            gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
             padding 220ms ease,
             background-color 120ms ease,
             color 120ms ease,
@@ -579,6 +582,7 @@ const isNavActive = (href: string) =>
 
     .nav-link-icon {
         width: 0.95rem;
+        flex: 0 0 0.95rem;
         text-align: center;
         color: #4f6890;
     }
@@ -603,12 +607,12 @@ const isNavActive = (href: string) =>
     }
 
     .nav-group[open] .sub-nav {
-        display: grid;
+        display: flex;
+        flex-direction: column;
     }
 
     .sub-nav-link {
-        display: grid;
-        grid-template-columns: 0.85rem 1fr;
+        display: flex;
         align-items: center;
         gap: 0.48rem;
         text-decoration: none;
@@ -619,7 +623,7 @@ const isNavActive = (href: string) =>
         padding: 0.42rem 0.6rem;
         border: 1px solid transparent;
         transition:
-            grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1),
+            gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
             background-color 120ms ease,
             border-color 120ms ease,
             color 120ms ease;
@@ -639,16 +643,15 @@ const isNavActive = (href: string) =>
 
     .sub-nav-icon {
         width: 0.85rem;
+        flex: 0 0 0.85rem;
         text-align: center;
         color: #5d7395;
         font-size: 0.78rem;
     }
 
-    :global(html.sidebar-collapsed) .app-layout {
-        grid-template-columns: 84px minmax(0, 1fr);
-    }
-
     :global(html.sidebar-collapsed) .sidebar {
+        width: 84px;
+        flex-basis: 84px;
         padding: 0.85rem 0.55rem;
     }
 
@@ -658,14 +661,13 @@ const isNavActive = (href: string) =>
     }
 
     :global(html.sidebar-collapsed) .brand {
-        grid-template-columns: 2rem;
         gap: 0;
         justify-content: center;
         width: 100%;
     }
 
     :global(html.sidebar-collapsed) .brand-logo {
-        justify-self: center;
+        margin-inline: auto;
     }
 
     :global(html.sidebar-collapsed) .brand-text,
@@ -676,14 +678,13 @@ const isNavActive = (href: string) =>
     }
 
     :global(html.sidebar-collapsed) .nav-link {
-        grid-template-columns: 1fr;
         gap: 0;
         justify-content: center;
         padding: 0.55rem 0.45rem;
     }
 
     :global(html.sidebar-collapsed) .nav-link-icon {
-        justify-self: center;
+        margin-inline: 0;
     }
 
     :global(html.sidebar-collapsed) .nav-group-summary {
@@ -700,8 +701,8 @@ const isNavActive = (href: string) =>
     }
 
     :global(html.sidebar-collapsed) .admin-popover-trigger {
-        display: grid;
-        grid-template-columns: 1fr;
+        display: flex;
+        align-items: center;
         gap: 0;
         justify-content: center;
         padding: 0.55rem 0.45rem;
@@ -754,26 +755,30 @@ const isNavActive = (href: string) =>
     }
 
     @media (max-width: 940px) {
-        .app-layout {
-            grid-template-columns: 220px minmax(0, 1fr);
+        .sidebar {
+            width: 220px;
+            flex-basis: 220px;
         }
     }
 
     @media (max-width: 760px) {
         .app-layout {
-            grid-template-columns: 1fr;
+            flex-direction: column;
             padding: 0.75rem;
+        }
+
+        .sidebar {
+            width: auto;
+            flex: 0 0 auto;
         }
 
         .sidebar-toggle {
             display: none;
         }
 
-        :global(html.sidebar-collapsed) .app-layout {
-            grid-template-columns: 1fr;
-        }
-
         :global(html.sidebar-collapsed) .sidebar {
+            width: auto;
+            flex-basis: auto;
             padding: 0.95rem;
         }
 
@@ -782,7 +787,6 @@ const isNavActive = (href: string) =>
         }
 
         :global(html.sidebar-collapsed) .brand {
-            grid-template-columns: 2rem 1fr;
             gap: 0.55rem;
             justify-content: flex-start;
         }
@@ -795,7 +799,6 @@ const isNavActive = (href: string) =>
         }
 
         :global(html.sidebar-collapsed) .nav-link {
-            grid-template-columns: 0.95rem 1fr;
             gap: 0.55rem;
             justify-content: start;
             padding: 0.55rem 0.7rem;
@@ -825,7 +828,7 @@ const isNavActive = (href: string) =>
         }
 
         :global(html.sidebar-collapsed) .nav-group[open] .sub-nav {
-            display: grid;
+            display: flex;
         }
 
         :global(html.sidebar-collapsed) :global(.auth-btn) {
@@ -840,7 +843,14 @@ const isNavActive = (href: string) =>
         .main-nav {
             width: 100%;
             margin-top: 0.85rem;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .main-nav > .nav-link,
+        .main-nav > .nav-group {
+            min-width: 0;
+            flex: 1 1 calc(50% - 0.35rem);
         }
 
         .sidebar-footer {
@@ -850,8 +860,9 @@ const isNavActive = (href: string) =>
     }
 
     @media (max-width: 520px) {
-        .main-nav {
-            grid-template-columns: 1fr;
+        .main-nav > .nav-link,
+        .main-nav > .nav-group {
+            flex-basis: 100%;
         }
 
         .auth-actions {
@@ -942,6 +953,8 @@ const isNavActive = (href: string) =>
     }
 
     .page-shell {
+        flex: 1 1 auto;
+        min-width: 0;
         max-width: 760px;
         margin: 0 auto;
         padding: 0;

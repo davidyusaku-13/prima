@@ -18,12 +18,13 @@ import Layout from "../layouts/Layout.astro";
 
 <style>
     :global(main.page-shell) {
-        display: grid;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         min-height: calc(100vh - 2rem);
     }
 
     .not-found-panel {
-        place-self: center;
         width: min(760px, 100%);
         max-width: 760px;
         background: #ffffff;
