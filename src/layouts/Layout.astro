@@ -248,8 +248,14 @@ const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
                             <SignInButton
                                 mode="modal"
                                 class="auth-btn auth-btn-secondary auth-btn-collapsed"
-                                set:text={"Login or create account"}
-                            />
+                                aria-label="Login or create account"
+                                title="Login or create account"
+                            >
+                                <i
+                                    class="fa-solid fa-fw fa-user-plus auth-btn-collapsed-icon"
+                                    aria-hidden="true"
+                                ></i>
+                            </SignInButton>
                         </SignedOut>
                         {/* Show the user button when the user is signed in */}
                         <SignedIn>
@@ -979,23 +985,12 @@ const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        font-size: 0;
-        line-height: 0;
-        color: transparent;
-        position: relative;
     }
 
-    .auth-btn-collapsed::before {
-        content: "\f2f6";
-        font-family: "Font Awesome 6 Free";
-        font-weight: 900;
+    .auth-btn-collapsed-icon {
         font-size: 0.92rem;
         line-height: 1;
         color: #27436f;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
     }
 
     .auth-btn:hover {
@@ -1028,7 +1023,7 @@ const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
     .auth-btn-collapsed.auth-btn-secondary,
     .auth-btn-collapsed.auth-btn-secondary:hover,
     .auth-btn-collapsed.auth-btn-secondary:active {
-        color: transparent;
+        color: #27436f;
     }
 
     .page-shell {
