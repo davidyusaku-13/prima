@@ -1,5 +1,6 @@
 ---
 import Layout from "../../../../layouts/Layout.astro";
+import AdminBadge from "../../../../components/admin/AdminBadge.astro";
 import HospitalSubpageHeader from "../../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../../utils/admin-api";
 
@@ -23,14 +24,25 @@ type HospitalInvite = {
     expires_at: string;
     consumed_at: string | null;
     consumed_by_clerk_id?: string;
+    revoked_at: string | null;
+    revoked_by_clerk_id?: string;
     created_at: string;
+};
+
+type InviteStatusKey = "active" | "used" | "expired" | "revoked";
+
+type InviteStatus = {
+    key: InviteStatusKey;
+    label: string;
+    tone: "success" | "danger" | "warning";
 };
 
 const fallbackInvites: HospitalInvite[] = [];
 const fallbackHospitals: Hospital[] = [];
 
 let createdInviteLink = "";
-let createError = "";
+let actionResult = "";
+let actionError = "";
 
 const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
 if (hospitalsResult.unauthorized) {
@@ -45,28 +57,92 @@ if (Astro.request.method === "POST") {
     }
 
     const formData = await Astro.request.formData();
-    const expiresInHours = Number(formData.get("expires_in_hours") ?? "72");
+    const action = String(formData.get("_action") ?? "create").trim();
 
-    const response = await fetch(`${API_URL}/admin/hospitals/${encodeURIComponent(slug)}/invites`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            expires_in_hours: Number.isFinite(expiresInHours) ? expiresInHours : 72,
-        }),
-    }).catch(() => null);
+    if (action === "replace_copy") {
+        const inviteID = Number(formData.get("invite_id") ?? "");
+        if (!Number.isInteger(inviteID) || inviteID <= 0) {
+            actionError = "Invite ID is invalid.";
+        } else {
+            const response = await fetch(
+                `${API_URL}/admin/hospitals/${encodeURIComponent(slug)}/invites/${inviteID}/replace-link`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                },
+            ).catch(() => null);
 
-    if (response?.ok) {
-        const payload = (await response.json()) as {
-            invite_path: string;
-        };
-        createdInviteLink = new URL(payload.invite_path, Astro.url.origin).toString();
-    } else if (response?.status === 401 || response?.status === 403) {
-        return Astro.redirect("/");
+            if (response?.ok) {
+                const payload = (await response.json()) as {
+                    invite_path: string;
+                };
+                createdInviteLink = new URL(payload.invite_path, Astro.url.origin).toString();
+                actionResult = "Active invite replaced. Copy and share the new invite link below.";
+            } else if (response?.status === 401 || response?.status === 403) {
+                return Astro.redirect("/");
+            } else {
+                const payload = response
+                    ? (((await response.json().catch(() => null)) as { error?: string } | null) ?? null)
+                    : null;
+                actionError = payload?.error ?? "Failed to replace invite link.";
+            }
+        }
+    } else if (action === "revoke") {
+        const inviteID = Number(formData.get("invite_id") ?? "");
+        if (!Number.isInteger(inviteID) || inviteID <= 0) {
+            actionError = "Invite ID is invalid.";
+        } else {
+            const response = await fetch(
+                `${API_URL}/admin/hospitals/${encodeURIComponent(slug)}/invites/${inviteID}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                },
+            ).catch(() => null);
+
+            if (response?.ok) {
+                actionResult = "Invite revoked successfully.";
+            } else if (response?.status === 401 || response?.status === 403) {
+                return Astro.redirect("/");
+            } else {
+                const payload = response
+                    ? (((await response.json().catch(() => null)) as { error?: string } | null) ?? null)
+                    : null;
+                actionError = payload?.error ?? "Failed to revoke invite.";
+            }
+        }
     } else {
-        createError = "Failed to generate invite.";
+        const expiresInHours = Number(formData.get("expires_in_hours") ?? "72");
+
+        const response = await fetch(`${API_URL}/admin/hospitals/${encodeURIComponent(slug)}/invites`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                expires_in_hours: Number.isFinite(expiresInHours) ? expiresInHours : 72,
+            }),
+        }).catch(() => null);
+
+        if (response?.ok) {
+            const payload = (await response.json()) as {
+                invite_path: string;
+            };
+            createdInviteLink = new URL(payload.invite_path, Astro.url.origin).toString();
+            actionResult = "Invite link created successfully.";
+        } else if (response?.status === 401 || response?.status === 403) {
+            return Astro.redirect("/");
+        } else {
+            const payload = response
+                ? (((await response.json().catch(() => null)) as { error?: string } | null) ?? null)
+                : null;
+            actionError = payload?.error ?? "Failed to generate invite.";
+        }
     }
 }
 
@@ -80,19 +156,71 @@ if (invitesResult.unauthorized) {
 }
 
 const invites = invitesResult.data;
+
+const now = Date.now();
+const getInviteStatus = (invite: HospitalInvite): InviteStatus => {
+    if (invite.revoked_at) {
+        return { label: "Revoked", tone: "warning", key: "revoked" };
+    }
+    if (invite.consumed_at) {
+        return { label: "Used", tone: "danger", key: "used" };
+    }
+    const expiresAt = new Date(invite.expires_at).getTime();
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) {
+        return { label: "Expired", tone: "warning", key: "expired" };
+    }
+    return { label: "Active", tone: "success", key: "active" };
+};
+
+const inviteRows = invites.map((invite) => ({
+    invite,
+    status: getInviteStatus(invite),
+}));
+
+const activeCount = inviteRows.filter((entry) => entry.status.key === "active").length;
+const usedCount = inviteRows.filter((entry) => entry.status.key === "used").length;
+const expiredCount = inviteRows.filter((entry) => entry.status.key === "expired").length;
+const revokedCount = inviteRows.filter((entry) => entry.status.key === "revoked").length;
+
+const headerStats = [
+    { label: "Total Invites", value: String(invites.length) },
+    { label: "Active", value: String(activeCount) },
+    { label: "Used", value: String(usedCount) },
+    { label: "Expired", value: String(expiredCount) },
+    { label: "Revoked", value: String(revokedCount) },
+];
 ---
 
 <Layout title="Hospital Invites">
-    <section class="panel">
-        <HospitalSubpageHeader slug={slug} label={hospitalLabel} activeTab="invites" />
+    <section class="panel workspace">
+        <HospitalSubpageHeader
+            slug={slug}
+            label={hospitalLabel}
+            activeTab="invites"
+            isActive={hospital?.is_active ?? true}
+            stats={headerStats}
+        >
+            <div slot="actions" class="header-actions">
+                <a href={`/admin/hospitals/${slug}`} class="quick-action">Overview</a>
+                <a href={`/admin/hospitals/${slug}/users`} class="quick-action">Users</a>
+            </div>
+        </HospitalSubpageHeader>
 
         <form method="post" class="invite-form" data-pending-label="Creating...">
+            <input type="hidden" name="_action" value="create" />
             <label>
                 Expires in (hours)
                 <input name="expires_in_hours" type="number" min="1" max="720" value="72" />
             </label>
             <button type="submit">Create Invite Link</button>
         </form>
+
+        {actionResult && <p class="message" role="status">{actionResult}</p>}
+        {actionError && (
+            <p class="message error" role="alert">
+                {actionError}
+            </p>
+        )}
 
         {
             createdInviteLink && (
@@ -107,82 +235,255 @@ const invites = invitesResult.data;
                 </div>
             )
         }
-        {createError && (
-            <p class="error" role="alert">
-                {createError}
-            </p>
-        )}
 
         {invites.length === 0 ? (
             <p class="empty-state">No invite links yet.</p>
         ) : (
-            <ul class="invite-list">
-                {
-                    invites.map((invite) => (
-                        <li>
-                            <span>#{invite.id}</span>
-                            <span>expires {new Date(invite.expires_at).toLocaleString()}</span>
-                            {invite.consumed_at ? (
-                                <span class="consumed">used</span>
-                            ) : (
-                                <span class="fresh">available</span>
-                            )}
-                        </li>
-                    ))
-                }
-            </ul>
+            <>
+                <form class="command-bar" role="search" onsubmit="return false;">
+                    <label class="field">
+                        <span>Search</span>
+                        <input
+                            id="invite-search"
+                            type="search"
+                            autocomplete="off"
+                            placeholder="Search invite ID"
+                            aria-label="Search invites"
+                        />
+                    </label>
+                    <label class="field">
+                        <span>Status</span>
+                        <select id="invite-status-filter" aria-label="Filter invites by status">
+                            <option value="all">All</option>
+                            <option value="active">Active</option>
+                            <option value="used">Used</option>
+                            <option value="expired">Expired</option>
+                            <option value="revoked">Revoked</option>
+                        </select>
+                    </label>
+                </form>
+
+                <p id="invite-result-count" class="result-count" role="status" aria-live="polite">
+                    Showing {invites.length} invites
+                </p>
+                <p class="subtle">
+                    To copy an existing active invite, use <strong>Replace + Copy</strong>. This safely revokes the
+                    old link and issues a new one.
+                </p>
+
+                <div class="table-wrap" aria-label="Hospital invites table">
+                    <table class="invite-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Invite</th>
+                                <th scope="col">Role</th>
+                                <th scope="col">Expires</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                inviteRows.map(({ invite, status }) => (
+                                    <tr
+                                        data-invite-row
+                                        data-searchable={String(invite.id)}
+                                        data-invite-status={status.key}
+                                    >
+                                        <td>
+                                            <strong>#{invite.id}</strong>
+                                        </td>
+                                        <td>{invite.invite_role}</td>
+                                        <td>{new Date(invite.expires_at).toLocaleString()}</td>
+                                        <td>
+                                            <AdminBadge label={status.label} tone={status.tone} />
+                                        </td>
+                                        <td>
+                                            {status.key === "active" ? (
+                                                <div class="action-group">
+                                                    <form
+                                                        method="post"
+                                                        class="inline-action"
+                                                        data-pending-label="Replacing..."
+                                                        data-confirm="Replace this invite with a new link and revoke the old one?"
+                                                    >
+                                                        <input type="hidden" name="_action" value="replace_copy" />
+                                                        <input type="hidden" name="invite_id" value={invite.id} />
+                                                        <button type="submit" class="replace-action">
+                                                            Replace + Copy
+                                                        </button>
+                                                    </form>
+                                                    <form
+                                                        method="post"
+                                                        class="inline-action"
+                                                        data-pending-label="Revoking..."
+                                                        data-confirm="Revoke this invite link? It cannot be used afterward."
+                                                    >
+                                                        <input type="hidden" name="_action" value="revoke" />
+                                                        <input type="hidden" name="invite_id" value={invite.id} />
+                                                        <button type="submit" class="danger-action">Revoke</button>
+                                                    </form>
+                                                </div>
+                                            ) : (
+                                                <span class="subtle">-</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <ul class="invite-cards">
+                    {
+                        inviteRows.map(({ invite, status }) => (
+                            <li
+                                data-invite-card
+                                data-searchable={String(invite.id)}
+                                data-invite-status={status.key}
+                            >
+                                <div class="card-head">
+                                    <strong>Invite #{invite.id}</strong>
+                                    <AdminBadge label={status.label} tone={status.tone} />
+                                </div>
+                                <p class="subtle">Role: {invite.invite_role}</p>
+                                <p class="subtle">Expires: {new Date(invite.expires_at).toLocaleString()}</p>
+                                {
+                                    status.key === "active" && (
+                                        <div class="card-actions">
+                                            <form
+                                                method="post"
+                                                class="inline-action"
+                                                data-pending-label="Replacing..."
+                                                data-confirm="Replace this invite with a new link and revoke the old one?"
+                                            >
+                                                <input type="hidden" name="_action" value="replace_copy" />
+                                                <input type="hidden" name="invite_id" value={invite.id} />
+                                                <button type="submit" class="replace-action">Replace + Copy</button>
+                                            </form>
+                                            <form
+                                                method="post"
+                                                class="inline-action"
+                                                data-pending-label="Revoking..."
+                                                data-confirm="Revoke this invite link? It cannot be used afterward."
+                                            >
+                                                <input type="hidden" name="_action" value="revoke" />
+                                                <input type="hidden" name="invite_id" value={invite.id} />
+                                                <button type="submit" class="danger-action">Revoke</button>
+                                            </form>
+                                        </div>
+                                    )
+                                }
+                            </li>
+                        ))
+                    }
+                </ul>
+            </>
         )}
     </section>
 </Layout>
 
 <script is:inline>
-    (() => {
-        const pendingForms = document.querySelectorAll("form[data-pending-label]");
-        for (const form of pendingForms) {
-            form.addEventListener("submit", (event) => {
-                const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
-                const button =
-                    submitter?.tagName === "BUTTON"
-                        ? submitter
-                        : form.querySelector("button[type='submit']");
-                if (!button || button.disabled) {
-                    return;
-                }
+    const pendingForms = document.querySelectorAll("form[data-pending-label]");
+    for (const form of pendingForms) {
+        form.addEventListener("submit", (event) => {
+            const confirmText = form.getAttribute("data-confirm");
+            if (confirmText && !window.confirm(confirmText)) {
+                event.preventDefault();
+                return;
+            }
 
-                const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
-                button.setAttribute("aria-busy", "true");
-                button.textContent = pendingLabel;
-                button.disabled = true;
-            });
+            const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
+            const button =
+                submitter?.tagName === "BUTTON"
+                    ? submitter
+                    : form.querySelector("button[type='submit']");
+            if (!button || button.disabled) {
+                return;
+            }
+
+            const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
+            button.setAttribute("aria-busy", "true");
+            button.textContent = pendingLabel;
+            button.disabled = true;
+        });
+    }
+
+    const copyButtons = document.querySelectorAll("button[data-copy-target]");
+    for (const button of copyButtons) {
+        button.addEventListener("click", async () => {
+            const targetID = button.getAttribute("data-copy-target");
+            if (!targetID) {
+                return;
+            }
+            const target = document.getElementById(targetID);
+            if (!(target instanceof HTMLInputElement)) {
+                return;
+            }
+
+            const text = target.value;
+            try {
+                await navigator.clipboard.writeText(text);
+                button.textContent = "Copied";
+            } catch {
+                target.select();
+                button.textContent = "Press Ctrl/Cmd+C";
+                return;
+            }
+            window.setTimeout(() => {
+                button.textContent = "Copy link";
+            }, 1400);
+        });
+    }
+
+    const searchInput = document.getElementById("invite-search");
+    const statusFilter = document.getElementById("invite-status-filter");
+    const rows = document.querySelectorAll("[data-invite-row]");
+    const cards = document.querySelectorAll("[data-invite-card]");
+    const countNode = document.getElementById("invite-result-count");
+
+    const applyFilter = () => {
+        const query =
+            searchInput instanceof HTMLInputElement ? searchInput.value.trim().toLowerCase() : "";
+        const status = statusFilter instanceof HTMLSelectElement ? statusFilter.value : "all";
+
+        let visibleCount = 0;
+        const evaluate = (element) => {
+            if (!(element instanceof HTMLElement)) {
+                return false;
+            }
+            const searchable = (element.dataset.searchable ?? "").toLowerCase();
+            const inviteStatus = element.dataset.inviteStatus ?? "active";
+            const matchesQuery = query.length === 0 || searchable.includes(query);
+            const matchesStatus = status === "all" || inviteStatus === status;
+            const visible = matchesQuery && matchesStatus;
+            element.hidden = !visible;
+            return visible;
+        };
+
+        for (const row of rows) {
+            if (evaluate(row)) {
+                visibleCount += 1;
+            }
+        }
+        for (const card of cards) {
+            evaluate(card);
         }
 
-        const copyButtons = document.querySelectorAll("button[data-copy-target]");
-        for (const button of copyButtons) {
-            button.addEventListener("click", async () => {
-                const targetID = button.getAttribute("data-copy-target");
-                if (!targetID) {
-                    return;
-                }
-                const target = document.getElementById(targetID);
-                if (!(target instanceof HTMLInputElement)) {
-                    return;
-                }
-
-                const text = target.value;
-                try {
-                    await navigator.clipboard.writeText(text);
-                    button.textContent = "Copied";
-                } catch {
-                    target.select();
-                    button.textContent = "Press Ctrl/Cmd+C";
-                    return;
-                }
-                window.setTimeout(() => {
-                    button.textContent = "Copy link";
-                }, 1400);
-            });
+        if (countNode) {
+            countNode.textContent = `Showing ${visibleCount} invite${visibleCount === 1 ? "" : "s"}`;
         }
-    })();
+    };
+
+    if (searchInput instanceof HTMLInputElement) {
+        searchInput.addEventListener("input", applyFilter);
+    }
+    if (statusFilter instanceof HTMLSelectElement) {
+        statusFilter.addEventListener("change", applyFilter);
+    }
+
+    applyFilter();
 </script>
 
 <style>
@@ -194,8 +495,36 @@ const invites = invitesResult.data;
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
+    .workspace {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+    }
+
+    .quick-action {
+        text-decoration: none;
+        border: 1px solid #bdd2f2;
+        border-radius: 999px;
+        padding: 0.3rem 0.72rem;
+        color: #1f4f95;
+        font-weight: 600;
+        font-size: 0.84rem;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease;
+    }
+
+    .quick-action:hover {
+        background: #edf4ff;
+        border-color: #9ebde8;
+    }
+
     .invite-form {
-        margin-top: 0.9rem;
         display: flex;
         gap: 0.6rem;
         flex-wrap: wrap;
@@ -205,31 +534,47 @@ const invites = invitesResult.data;
     .invite-form label {
         display: grid;
         gap: 0.3rem;
+        font-size: 0.88rem;
+        color: #3a4b65;
     }
 
     .invite-form input {
+        height: 2.5rem;
         border: 1px solid #c9d8f2;
-        border-radius: 9px;
-        padding: 0.55rem 0.65rem;
-        width: 10rem;
+        border-radius: 10px;
+        padding: 0 0.7rem;
+        width: 11rem;
     }
 
     .invite-form button {
-        border: none;
+        border: 1px solid #1f66d2;
         border-radius: 999px;
         background: #1f66d2;
         color: #fff;
         font-weight: 600;
-        padding: 0.45rem 0.9rem;
+        padding: 0.46rem 0.95rem;
         cursor: pointer;
     }
 
+    .invite-form button:hover {
+        background: #1b57b3;
+        border-color: #1b57b3;
+    }
+
+    .message {
+        margin: 0;
+        color: #1f365b;
+    }
+
+    .message.error {
+        color: #991b1b;
+    }
+
     .invite-link-card {
-        margin-top: 0.75rem;
         background: #f0f7ff;
         border: 1px solid #d4e6fb;
-        padding: 0.6rem;
-        border-radius: 8px;
+        padding: 0.65rem;
+        border-radius: 10px;
         display: grid;
         gap: 0.45rem;
     }
@@ -270,40 +615,190 @@ const invites = invitesResult.data;
         cursor: pointer;
     }
 
-    .error {
-        color: #991b1b;
-    }
-
-    .empty-state {
-        margin-top: 1rem;
-        color: #6b7280;
-    }
-
-    .invite-list {
-        list-style: none;
-        margin: 1rem 0 0;
-        padding: 0;
+    .command-bar {
         display: grid;
-        gap: 0.5rem;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.6rem;
+        align-items: end;
     }
 
-    .invite-list li {
-        border: 1px solid #dce6f7;
+    .field {
+        display: grid;
+        gap: 0.3rem;
+        font-size: 0.88rem;
+        color: #3a4b65;
+    }
+
+    .field input,
+    .field select {
+        height: 2.5rem;
+        border: 1px solid #c9d8f2;
         border-radius: 10px;
-        padding: 0.65rem 0.75rem;
+        padding: 0 0.7rem;
+        background: #ffffff;
+    }
+
+    .field input::placeholder {
+        color: #94a3b8;
+    }
+
+    .result-count {
+        margin: 0;
+        font-size: 0.88rem;
+        color: #516178;
+    }
+
+    .table-wrap {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        overflow-x: auto;
+    }
+
+    .invite-table {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .invite-table th,
+    .invite-table td {
+        border-bottom: 1px solid #e5edf9;
+        padding: 0.6rem 0.7rem;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .invite-table th {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #607089;
+        background: #f8fbff;
+        white-space: nowrap;
+    }
+
+    .invite-table tbody tr:hover {
+        background: #f8fbff;
+    }
+
+    .invite-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .inline-action {
+        margin: 0;
+    }
+
+    .action-group,
+    .card-actions {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.35rem;
         flex-wrap: wrap;
         align-items: center;
     }
 
-    .fresh {
-        color: #166534;
+    .replace-action,
+    .danger-action {
+        border-radius: 999px;
+        color: #fff;
         font-weight: 600;
+        padding: 0.3rem 0.72rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease;
     }
 
-    .consumed {
-        color: #991b1b;
-        font-weight: 600;
+    .replace-action {
+        border: 1px solid #1f66d2;
+        background: #1f66d2;
+    }
+
+    .replace-action:hover {
+        background: #1b57b3;
+        border-color: #1b57b3;
+    }
+
+    .danger-action {
+        border: 1px solid #b42323;
+        background: #b42323;
+    }
+
+    .danger-action:hover {
+        background: #921f1f;
+        border-color: #921f1f;
+    }
+
+    .replace-action:disabled,
+    .danger-action:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    .invite-cards {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: none;
+        gap: 0.55rem;
+    }
+
+    .invite-cards li {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 0.65rem;
+        display: grid;
+        gap: 0.45rem;
+    }
+
+    .card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .card-actions {
+        margin: 0.15rem 0 0;
+    }
+
+    .subtle {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.88rem;
+    }
+
+    .empty-state {
+        margin: 0;
+        color: #6b7280;
+    }
+
+    @media (max-width: 980px) {
+        .table-wrap {
+            display: none;
+        }
+
+        .invite-cards {
+            display: grid;
+        }
+    }
+
+    @media (max-width: 700px) {
+        .command-bar {
+            grid-template-columns: 1fr;
+        }
+
+        .invite-form {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .invite-form input {
+            width: 100%;
+        }
     }
 </style>

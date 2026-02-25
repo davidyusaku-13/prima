@@ -1,5 +1,6 @@
 ---
 import Layout from "../../../../layouts/Layout.astro";
+import AdminBadge from "../../../../components/admin/AdminBadge.astro";
 import HospitalSubpageHeader from "../../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../../utils/admin-api";
 
@@ -42,33 +43,220 @@ if (usersResult.unauthorized) {
 }
 
 const users = usersResult.data;
+const adminCount = users.filter((user) => user.membership_role === "admin").length;
+const inactiveCount = users.filter((user) => !user.is_active).length;
+
+const headerStats = [
+    { label: "Users", value: String(users.length) },
+    { label: "Admins", value: String(adminCount) },
+    { label: "Inactive", value: String(inactiveCount) },
+];
 ---
 
 <Layout title="Hospital Users">
-    <section class="panel">
-        <HospitalSubpageHeader slug={slug} label={hospitalLabel} activeTab="users" />
+    <section class="panel workspace">
+        <HospitalSubpageHeader
+            slug={slug}
+            label={hospitalLabel}
+            activeTab="users"
+            isActive={hospital?.is_active ?? true}
+            stats={headerStats}
+        >
+            <div slot="actions" class="header-actions">
+                <a href={`/admin/hospitals/${slug}`} class="quick-action">Overview</a>
+                <a href={`/admin/hospitals/${slug}/invites`} class="quick-action">Invite Links</a>
+            </div>
+        </HospitalSubpageHeader>
 
         {users.length === 0 ? (
-            <p class="muted empty-state">No users found for this hospital.</p>
+            <p class="empty-state">No users found for this hospital.</p>
         ) : (
-            <ul class="user-list">
-                {
-                    users.map((user) => (
-                        <li>
-                            <span class="user-name">{user.name}</span>
-                            {user.email && <span class="muted">&lt;{user.email}&gt;</span>}
-                            <span class={`badge badge-${user.membership_role}`}>{user.membership_role}</span>
-                            {user.role !== user.membership_role && (
-                                <span class={`badge badge-role`}>global: {user.role}</span>
-                            )}
-                            {!user.is_active && <span class="badge badge-inactive">inactive</span>}
-                        </li>
-                    ))
-                }
-            </ul>
+            <>
+                <form class="command-bar" role="search" onsubmit="return false;">
+                    <label class="field">
+                        <span>Search users</span>
+                        <input
+                            id="users-search"
+                            type="search"
+                            autocomplete="off"
+                            placeholder="Search by name, username, or email"
+                            aria-label="Search users"
+                        />
+                    </label>
+                    <label class="field">
+                        <span>Membership role</span>
+                        <select id="users-role-filter" aria-label="Filter users by membership role">
+                            <option value="all">All</option>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Account state</span>
+                        <select id="users-state-filter" aria-label="Filter users by account state">
+                            <option value="all">All</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </label>
+                </form>
+
+                <p id="users-result-count" class="result-count" role="status" aria-live="polite">
+                    Showing {users.length} users
+                </p>
+
+                <div class="table-wrap" aria-label="Hospital users table">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">User</th>
+                                <th scope="col">Membership</th>
+                                <th scope="col">Global Role</th>
+                                <th scope="col">State</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                users.map((user) => {
+                                    const searchable = `${user.name} ${user.username} ${user.email}`.toLowerCase();
+                                    return (
+                                        <tr
+                                            data-user-row
+                                            data-searchable={searchable}
+                                            data-membership-role={user.membership_role}
+                                            data-account-state={user.is_active ? "active" : "inactive"}
+                                        >
+                                            <td>
+                                                <div class="identity">
+                                                    <strong>{user.name}</strong>
+                                                    {user.username && <span class="subtle">@{user.username}</span>}
+                                                    {user.email && <span class="subtle">&lt;{user.email}&gt;</span>}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <AdminBadge
+                                                    label={user.membership_role}
+                                                    tone={user.membership_role === "admin" ? "info" : "neutral"}
+                                                    showDot={false}
+                                                />
+                                            </td>
+                                            <td>
+                                                {user.role === user.membership_role ? (
+                                                    <span class="subtle">-</span>
+                                                ) : (
+                                                    <AdminBadge label={`global: ${user.role}`} tone="warning" />
+                                                )}
+                                            </td>
+                                            <td>
+                                                <AdminBadge
+                                                    label={user.is_active ? "Active" : "Inactive"}
+                                                    tone={user.is_active ? "success" : "danger"}
+                                                />
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <ul class="user-cards">
+                    {
+                        users.map((user) => {
+                            const searchable = `${user.name} ${user.username} ${user.email}`.toLowerCase();
+                            return (
+                                <li
+                                    data-user-card
+                                    data-searchable={searchable}
+                                    data-membership-role={user.membership_role}
+                                    data-account-state={user.is_active ? "active" : "inactive"}
+                                >
+                                    <div class="identity">
+                                        <strong>{user.name}</strong>
+                                        {user.username && <span class="subtle">@{user.username}</span>}
+                                        {user.email && <span class="subtle">&lt;{user.email}&gt;</span>}
+                                    </div>
+                                    <div class="card-badges">
+                                        <AdminBadge
+                                            label={user.membership_role}
+                                            tone={user.membership_role === "admin" ? "info" : "neutral"}
+                                            showDot={false}
+                                        />
+                                        {user.role !== user.membership_role && (
+                                            <AdminBadge label={`global: ${user.role}`} tone="warning" />
+                                        )}
+                                        <AdminBadge
+                                            label={user.is_active ? "Active" : "Inactive"}
+                                            tone={user.is_active ? "success" : "danger"}
+                                        />
+                                    </div>
+                                </li>
+                            );
+                        })
+                    }
+                </ul>
+            </>
         )}
     </section>
 </Layout>
+
+<script is:inline>
+    const searchInput = document.getElementById("users-search");
+    const roleFilter = document.getElementById("users-role-filter");
+    const stateFilter = document.getElementById("users-state-filter");
+    const rows = document.querySelectorAll("[data-user-row]");
+    const cards = document.querySelectorAll("[data-user-card]");
+    const countNode = document.getElementById("users-result-count");
+
+    const applyFilter = () => {
+        const query =
+            searchInput instanceof HTMLInputElement ? searchInput.value.trim().toLowerCase() : "";
+        const membershipRole = roleFilter instanceof HTMLSelectElement ? roleFilter.value : "all";
+        const accountState = stateFilter instanceof HTMLSelectElement ? stateFilter.value : "all";
+
+        let visibleCount = 0;
+        const evaluate = (element) => {
+            if (!(element instanceof HTMLElement)) {
+                return false;
+            }
+            const searchable = (element.dataset.searchable ?? "").toLowerCase();
+            const rowRole = element.dataset.membershipRole ?? "";
+            const rowState = element.dataset.accountState ?? "active";
+            const matchesQuery = query.length === 0 || searchable.includes(query);
+            const matchesRole = membershipRole === "all" || rowRole === membershipRole;
+            const matchesState = accountState === "all" || rowState === accountState;
+            const visible = matchesQuery && matchesRole && matchesState;
+            element.hidden = !visible;
+            return visible;
+        };
+
+        for (const row of rows) {
+            if (evaluate(row)) {
+                visibleCount += 1;
+            }
+        }
+        for (const card of cards) {
+            evaluate(card);
+        }
+
+        if (countNode) {
+            countNode.textContent = `Showing ${visibleCount} user${visibleCount === 1 ? "" : "s"}`;
+        }
+    };
+
+    if (searchInput instanceof HTMLInputElement) {
+        searchInput.addEventListener("input", applyFilter);
+    }
+    if (roleFilter instanceof HTMLSelectElement) {
+        roleFilter.addEventListener("change", applyFilter);
+    }
+    if (stateFilter instanceof HTMLSelectElement) {
+        stateFilter.addEventListener("change", applyFilter);
+    }
+
+    applyFilter();
+</script>
 
 <style>
     .panel {
@@ -79,63 +267,159 @@ const users = usersResult.data;
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
-    .user-list {
+    .workspace {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+    }
+
+    .quick-action {
+        text-decoration: none;
+        border: 1px solid #bdd2f2;
+        border-radius: 999px;
+        padding: 0.3rem 0.72rem;
+        color: #1f4f95;
+        font-weight: 600;
+        font-size: 0.84rem;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease;
+    }
+
+    .quick-action:hover {
+        background: #edf4ff;
+        border-color: #9ebde8;
+    }
+
+    .command-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 0.6rem;
+        align-items: end;
+    }
+
+    .field {
+        display: grid;
+        gap: 0.3rem;
+        font-size: 0.88rem;
+        color: #3a4b65;
+    }
+
+    .field input,
+    .field select {
+        height: 2.5rem;
+        border: 1px solid #c9d8f2;
+        border-radius: 10px;
+        padding: 0 0.7rem;
+        background: #ffffff;
+    }
+
+    .field input::placeholder {
+        color: #94a3b8;
+    }
+
+    .result-count {
+        margin: 0;
+        font-size: 0.88rem;
+        color: #516178;
+    }
+
+    .table-wrap {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        overflow-x: auto;
+    }
+
+    .users-table {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .users-table th,
+    .users-table td {
+        border-bottom: 1px solid #e5edf9;
+        padding: 0.6rem 0.7rem;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .users-table th {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #607089;
+        background: #f8fbff;
+        white-space: nowrap;
+    }
+
+    .users-table tbody tr:hover {
+        background: #f8fbff;
+    }
+
+    .users-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .identity {
+        display: flex;
+        gap: 0.4rem;
+        align-items: baseline;
+        flex-wrap: wrap;
+    }
+
+    .subtle {
+        color: #6b7280;
+        font-size: 0.87rem;
+    }
+
+    .user-cards {
         list-style: none;
-        margin: 0.9rem 0 0;
+        margin: 0;
         padding: 0;
+        display: none;
+        gap: 0.55rem;
+    }
+
+    .user-cards li {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 0.65rem;
         display: grid;
         gap: 0.55rem;
     }
 
-    .user-list li {
-        border: 1px solid #dce6f7;
-        border-radius: 10px;
-        padding: 0.65rem 0.75rem;
+    .card-badges {
         display: flex;
-        gap: 0.4rem;
-        align-items: center;
+        gap: 0.35rem;
         flex-wrap: wrap;
     }
 
-    .user-name {
-        font-weight: 600;
-    }
-
-    .muted {
-        color: #6b7280;
-        font-size: 0.88rem;
-    }
-
     .empty-state {
-        margin-top: 1rem;
+        margin: 0.1rem 0 0;
+        color: #6b7280;
     }
 
-    .badge {
-        font-size: 0.72rem;
-        border-radius: 999px;
-        padding: 0.12rem 0.5rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+    @media (max-width: 980px) {
+        .table-wrap {
+            display: none;
+        }
+
+        .user-cards {
+            display: grid;
+        }
     }
 
-    .badge-user {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .badge-admin {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .badge-role {
-        background: #ede9fe;
-        color: #5b21b6;
-    }
-
-    .badge-inactive {
-        background: #fee2e2;
-        color: #991b1b;
+    @media (max-width: 700px) {
+        .command-bar {
+            grid-template-columns: 1fr;
+        }
     }
 </style>

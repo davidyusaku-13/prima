@@ -1,0 +1,73 @@
+---
+type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+
+type Props = {
+    label: string;
+    tone?: Tone;
+    showDot?: boolean;
+};
+
+const { label, tone = "neutral", showDot = true } = Astro.props as Props;
+---
+
+<span class:list={["badge", `tone-${tone}`]}>
+    {showDot && <span aria-hidden="true" class="dot"></span>}
+    <span>{label}</span>
+</span>
+
+<style>
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 999px;
+        border: 1px solid #c9d8f2;
+        padding: 0.16rem 0.52rem;
+        font-size: 0.74rem;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        background: #f8fbff;
+        color: #1f365b;
+        white-space: nowrap;
+    }
+
+    .dot {
+        width: 0.42rem;
+        height: 0.42rem;
+        border-radius: 999px;
+        background: currentcolor;
+        opacity: 0.75;
+    }
+
+    .tone-neutral {
+        border-color: #d3deef;
+        background: #f8fafc;
+        color: #334155;
+    }
+
+    .tone-info {
+        border-color: #bfd7f8;
+        background: #eaf3ff;
+        color: #1d4d8f;
+    }
+
+    .tone-success {
+        border-color: #9dd9bb;
+        background: #eaf8ef;
+        color: #166534;
+    }
+
+    .tone-warning {
+        border-color: #ebd6a5;
+        background: #fff9e8;
+        color: #8b5a0b;
+    }
+
+    .tone-danger {
+        border-color: #e6b4b4;
+        background: #fff1f1;
+        color: #991b1b;
+    }
+</style>

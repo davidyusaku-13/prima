@@ -1,9 +1,15 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import AdminBadge from "../../components/admin/AdminBadge.astro";
 import { fetchAdminJson } from "../../utils/admin-api";
 
 const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
 const token = Astro.locals.authToken ?? null;
+
+type AdminProbe = {
+    role: string;
+    hospital_id: number;
+};
 
 type Hospital = {
     id: number;
@@ -13,7 +19,34 @@ type Hospital = {
     created_at: string;
 };
 
+type HospitalUser = {
+    clerk_id: string;
+};
+
+type HospitalInvite = {
+    id: number;
+    expires_at: string;
+    consumed_at: string | null;
+};
+
+type HospitalAdmin = {
+    clerk_id: string;
+};
+
+type HospitalSummary = {
+    userCount: number;
+    representativeCount: number | null;
+    activeInviteCount: number;
+};
+
+const fallbackProbe: AdminProbe = {
+    role: "",
+    hospital_id: 0,
+};
 const fallbackHospitals: Hospital[] = [];
+const fallbackUsers: HospitalUser[] = [];
+const fallbackInvites: HospitalInvite[] = [];
+const fallbackAdmins: HospitalAdmin[] = [];
 
 let createError = "";
 
@@ -54,30 +87,114 @@ if (Astro.request.method === "POST") {
     }
 }
 
+const probeResult = await fetchAdminJson(token, "/admin", fallbackProbe);
+if (probeResult.unauthorized) {
+    return Astro.redirect("/");
+}
+const isSuperadmin = probeResult.data.role === "superadmin";
+
 const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
 if (hospitalsResult.unauthorized) {
     return Astro.redirect("/");
 }
 const hospitals = hospitalsResult.data;
+
+const summaryEntries = await Promise.all(
+    hospitals.map(async (hospital) => {
+        const encodedSlug = encodeURIComponent(hospital.slug);
+        const [usersResult, invitesResult, adminsResult] = await Promise.all([
+            fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/users`, fallbackUsers),
+            fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/invites`, fallbackInvites),
+            isSuperadmin
+                ? fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/admins`, fallbackAdmins)
+                : Promise.resolve({ unauthorized: false, data: null as HospitalAdmin[] | null }),
+        ]);
+
+        const unauthorized =
+            usersResult.unauthorized || invitesResult.unauthorized || Boolean(adminsResult.unauthorized);
+
+        const now = Date.now();
+        const activeInviteCount = invitesResult.data.filter((invite) => {
+            if (invite.consumed_at) {
+                return false;
+            }
+            const expiresAt = new Date(invite.expires_at).getTime();
+            return Number.isFinite(expiresAt) && expiresAt > now;
+        }).length;
+
+        return {
+            slug: hospital.slug,
+            unauthorized,
+            summary: {
+                userCount: usersResult.data.length,
+                representativeCount: isSuperadmin ? (adminsResult.data?.length ?? 0) : null,
+                activeInviteCount,
+            } satisfies HospitalSummary,
+        };
+    }),
+);
+
+if (summaryEntries.some((entry) => entry.unauthorized)) {
+    return Astro.redirect("/");
+}
+
+const summaries = new Map(summaryEntries.map((entry) => [entry.slug, entry.summary]));
+
+const totalHospitals = hospitals.length;
+const activeHospitals = hospitals.filter((hospital) => hospital.is_active).length;
+const inactiveHospitals = totalHospitals - activeHospitals;
+
+const shouldOpenCreateModal = Boolean(createError);
 ---
 
 <Layout title="Admin Hospitals">
-    <section class="panel">
-        <p class="eyebrow">Admin</p>
-        <h1>Hospitals</h1>
-        <p class="subtle">Create and manage tenant hospitals.</p>
+    <section class="panel hospitals-workspace">
+        <header class="workspace-header">
+            <div>
+                <p class="eyebrow">Admin</p>
+                <h1>Hospitals</h1>
+                <p class="subtle">Operations workspace for tenants, users, representatives, and invites.</p>
+            </div>
+            <button type="button" class="primary-action" id="open-create-modal">
+                New Hospital
+            </button>
+        </header>
 
-        <form class="create-form" method="post" data-pending-label="Creating...">
-            <label>
-                Hospital name
-                <input name="name" type="text" required />
+        <form class="command-bar" role="search" onsubmit="return false;">
+            <label class="field">
+                <span>Search</span>
+                <input
+                    id="hospital-search"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search by name or slug"
+                    aria-label="Search hospitals"
+                />
             </label>
-            <label>
-                Slug (optional)
-                <input name="slug" type="text" placeholder="auto-generated-from-name" />
+            <label class="field field-status">
+                <span>Status</span>
+                <select id="hospital-status-filter" aria-label="Filter hospitals by status">
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
             </label>
-            <button type="submit">Create Hospital</button>
         </form>
+
+        <ul class="kpi-strip" aria-label="Hospital totals">
+            <li>
+                <span class="kpi-label">Total Hospitals</span>
+                <strong>{totalHospitals}</strong>
+            </li>
+            <li>
+                <span class="kpi-label">Active</span>
+                <strong>{activeHospitals}</strong>
+            </li>
+            <li>
+                <span class="kpi-label">Inactive</span>
+                <strong>{inactiveHospitals}</strong>
+            </li>
+        </ul>
 
         {createError && (
             <p class="error" role="alert">
@@ -86,46 +203,254 @@ const hospitals = hospitalsResult.data;
         )}
 
         {hospitals.length === 0 ? (
-            <p class="subtle empty-state">No hospitals found.</p>
+            <p class="subtle empty-state">No hospitals found yet. Create the first one to get started.</p>
         ) : (
-            <ul class="hospital-list">
-                {
-                    hospitals.map((hospital) => (
-                        <li>
-                            <a href={`/admin/hospitals/${hospital.slug}`}>
-                                <strong>{hospital.name}</strong>
-                                <span class="slug">/{hospital.slug}</span>
-                            </a>
-                            {!hospital.is_active && <span class="inactive">inactive</span>}
-                        </li>
-                    ))
-                }
-            </ul>
+            <>
+                <p id="hospitals-result-count" class="result-count" role="status" aria-live="polite">
+                    Showing {hospitals.length} hospitals
+                </p>
+
+                <div class="table-wrap" aria-label="Hospitals table">
+                    <table class="hospital-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Hospital</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Representatives</th>
+                                <th scope="col">Users</th>
+                                <th scope="col">Active Invites</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hospital-table-body">
+                            {
+                                hospitals.map((hospital) => {
+                                    const summary = summaries.get(hospital.slug) ?? {
+                                        userCount: 0,
+                                        representativeCount: null,
+                                        activeInviteCount: 0,
+                                    };
+                                    const searchable = `${hospital.name} ${hospital.slug}`.toLowerCase();
+                                    return (
+                                        <tr
+                                            data-hospital-row
+                                            data-status={hospital.is_active ? "active" : "inactive"}
+                                            data-searchable={searchable}
+                                        >
+                                            <td>
+                                                <div class="hospital-cell">
+                                                    <a href={`/admin/hospitals/${hospital.slug}`} class="hospital-link">
+                                                        <strong>{hospital.name}</strong>
+                                                    </a>
+                                                    <span class="slug">/{hospital.slug}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <AdminBadge
+                                                    label={hospital.is_active ? "Active" : "Inactive"}
+                                                    tone={hospital.is_active ? "success" : "danger"}
+                                                />
+                                            </td>
+                                            <td>
+                                                {summary.representativeCount === null ? "-" : summary.representativeCount}
+                                            </td>
+                                            <td>{summary.userCount}</td>
+                                            <td>{summary.activeInviteCount}</td>
+                                            <td>
+                                                <div class="row-actions">
+                                                    <a href={`/admin/hospitals/${hospital.slug}`}>Open</a>
+                                                    <a href={`/admin/hospitals/${hospital.slug}/users`}>Users</a>
+                                                    <a href={`/admin/hospitals/${hospital.slug}/invites`}>Invites</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <ul class="hospital-cards" id="hospital-cards">
+                    {
+                        hospitals.map((hospital) => {
+                            const summary = summaries.get(hospital.slug) ?? {
+                                userCount: 0,
+                                representativeCount: null,
+                                activeInviteCount: 0,
+                            };
+                            const searchable = `${hospital.name} ${hospital.slug}`.toLowerCase();
+                            return (
+                                <li
+                                    data-hospital-card
+                                    data-status={hospital.is_active ? "active" : "inactive"}
+                                    data-searchable={searchable}
+                                >
+                                    <div class="card-head">
+                                        <a href={`/admin/hospitals/${hospital.slug}`} class="hospital-link">
+                                            <strong>{hospital.name}</strong>
+                                        </a>
+                                        <AdminBadge
+                                            label={hospital.is_active ? "Active" : "Inactive"}
+                                            tone={hospital.is_active ? "success" : "danger"}
+                                        />
+                                    </div>
+                                    <p class="slug">/{hospital.slug}</p>
+                                    <dl class="card-metrics">
+                                        <div>
+                                            <dt>Representatives</dt>
+                                            <dd>{summary.representativeCount === null ? "-" : summary.representativeCount}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Users</dt>
+                                            <dd>{summary.userCount}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Active Invites</dt>
+                                            <dd>{summary.activeInviteCount}</dd>
+                                        </div>
+                                    </dl>
+                                    <div class="row-actions">
+                                        <a href={`/admin/hospitals/${hospital.slug}`}>Open</a>
+                                        <a href={`/admin/hospitals/${hospital.slug}/users`}>Users</a>
+                                        <a href={`/admin/hospitals/${hospital.slug}/invites`}>Invites</a>
+                                    </div>
+                                </li>
+                            );
+                        })
+                    }
+                </ul>
+            </>
         )}
     </section>
+
+    <div id="create-modal-overlay" class="create-modal-overlay" hidden={!shouldOpenCreateModal}>
+        <div class="create-modal" role="dialog" aria-modal="true" aria-labelledby="create-hospital-title">
+            <div class="create-modal-header">
+                <h2 id="create-hospital-title">Create Hospital</h2>
+                <button type="button" class="icon-close" id="close-create-modal" aria-label="Close create hospital form">
+                    ×
+                </button>
+            </div>
+            <p class="subtle">Create a new tenant hospital and continue to its management workspace.</p>
+            <form class="create-form" method="post" data-pending-label="Creating...">
+                <label>
+                    Hospital name
+                    <input id="create-hospital-name" name="name" type="text" required />
+                </label>
+                <label>
+                    Slug (optional)
+                    <input name="slug" type="text" placeholder="auto-generated-from-name" />
+                </label>
+                <div class="create-actions">
+                    <button type="button" class="secondary-action" id="cancel-create-modal">Cancel</button>
+                    <button type="submit" class="primary-action">Create Hospital</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </Layout>
 
 <script is:inline>
-    (() => {
-        const pendingForms = document.querySelectorAll("form[data-pending-label]");
-        for (const form of pendingForms) {
-            form.addEventListener("submit", (event) => {
-                const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
-                const button =
-                    submitter?.tagName === "BUTTON"
-                        ? submitter
-                        : form.querySelector("button[type='submit']");
-                if (!button || button.disabled) {
-                    return;
-                }
+    const searchInput = document.getElementById("hospital-search");
+    const statusFilter = document.getElementById("hospital-status-filter");
+    const tableRows = document.querySelectorAll("[data-hospital-row]");
+    const cards = document.querySelectorAll("[data-hospital-card]");
+    const countNode = document.getElementById("hospitals-result-count");
 
-                const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
-                button.setAttribute("aria-busy", "true");
-                button.textContent = pendingLabel;
-                button.disabled = true;
-            });
+    const applyFilter = () => {
+        const query =
+            searchInput instanceof HTMLInputElement ? searchInput.value.trim().toLowerCase() : "";
+        const status =
+            statusFilter instanceof HTMLSelectElement ? statusFilter.value : "all";
+
+        let visibleCount = 0;
+        const evaluate = (element) => {
+            if (!(element instanceof HTMLElement)) {
+                return false;
+            }
+            const searchable = (element.dataset.searchable ?? "").toLowerCase();
+            const rowStatus = element.dataset.status ?? "active";
+            const matchesQuery = query.length === 0 || searchable.includes(query);
+            const matchesStatus = status === "all" || rowStatus === status;
+            const visible = matchesQuery && matchesStatus;
+            element.hidden = !visible;
+            return visible;
+        };
+
+        for (const row of tableRows) {
+            if (evaluate(row)) {
+                visibleCount += 1;
+            }
         }
-    })();
+        for (const card of cards) {
+            evaluate(card);
+        }
+
+        if (countNode) {
+            countNode.textContent = `Showing ${visibleCount} hospital${visibleCount === 1 ? "" : "s"}`;
+        }
+    };
+
+    if (searchInput instanceof HTMLInputElement) {
+        searchInput.addEventListener("input", applyFilter);
+    }
+    if (statusFilter instanceof HTMLSelectElement) {
+        statusFilter.addEventListener("change", applyFilter);
+    }
+    applyFilter();
+
+    const overlay = document.getElementById("create-modal-overlay");
+    const openButton = document.getElementById("open-create-modal");
+    const closeButton = document.getElementById("close-create-modal");
+    const cancelButton = document.getElementById("cancel-create-modal");
+    const nameInput = document.getElementById("create-hospital-name");
+
+    const showModal = () => {
+        if (!(overlay instanceof HTMLElement)) {
+            return;
+        }
+        overlay.hidden = false;
+        if (nameInput instanceof HTMLInputElement) {
+            window.setTimeout(() => nameInput.focus(), 0);
+        }
+    };
+
+    const hideModal = () => {
+        if (!(overlay instanceof HTMLElement)) {
+            return;
+        }
+        overlay.hidden = true;
+    };
+
+    openButton?.addEventListener("click", showModal);
+    closeButton?.addEventListener("click", hideModal);
+    cancelButton?.addEventListener("click", hideModal);
+
+    overlay?.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+            hideModal();
+        }
+    });
+
+    const pendingForms = document.querySelectorAll("form[data-pending-label]");
+    for (const form of pendingForms) {
+        form.addEventListener("submit", (event) => {
+            const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
+            const button =
+                submitter?.tagName === "BUTTON"
+                    ? submitter
+                    : form.querySelector("button[type='submit']");
+            if (!button || button.disabled) {
+                return;
+            }
+
+            const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
+            button.setAttribute("aria-busy", "true");
+            button.textContent = pendingLabel;
+            button.disabled = true;
+        });
+    }
 </script>
 
 <style>
@@ -135,6 +460,19 @@ const hospitals = hospitalsResult.data;
         border-radius: 16px;
         padding: clamp(1rem, 2.5vw, 1.5rem);
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .hospitals-workspace {
+        display: grid;
+        gap: 0.95rem;
+    }
+
+    .workspace-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 0.8rem;
+        flex-wrap: wrap;
     }
 
     .eyebrow {
@@ -147,8 +485,9 @@ const hospitals = hospitalsResult.data;
     }
 
     h1 {
-        margin: 0 0 0.4rem;
+        margin: 0.1rem 0 0.35rem;
         font-size: clamp(1.25rem, 3vw, 1.6rem);
+        line-height: 1.25;
     }
 
     .subtle {
@@ -156,12 +495,296 @@ const hospitals = hospitalsResult.data;
         color: #516178;
     }
 
+    .command-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.65rem;
+        align-items: end;
+    }
+
+    .field {
+        display: grid;
+        gap: 0.3rem;
+        font-size: 0.88rem;
+        color: #3a4b65;
+    }
+
+    .field input,
+    .field select {
+        height: 2.5rem;
+        border: 1px solid #c9d8f2;
+        border-radius: 10px;
+        padding: 0 0.7rem;
+        background: #ffffff;
+    }
+
+    .field input::placeholder {
+        color: #94a3b8;
+    }
+
+    .field-status {
+        min-width: 9.25rem;
+    }
+
+    .kpi-strip {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+        gap: 0.6rem;
+    }
+
+    .kpi-strip li {
+        border: 1px solid #d8e3f7;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
+        padding: 0.65rem 0.75rem;
+        display: grid;
+        gap: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #607089;
+    }
+
+    .kpi-strip strong {
+        font-size: 1.1rem;
+        color: #1f365b;
+    }
+
+    .result-count {
+        margin: 0;
+        font-size: 0.88rem;
+        color: #516178;
+    }
+
+    .table-wrap {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        overflow-x: auto;
+    }
+
+    .hospital-table {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .hospital-table th,
+    .hospital-table td {
+        border-bottom: 1px solid #e5edf9;
+        padding: 0.6rem 0.7rem;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .hospital-table th {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #607089;
+        background: #f8fbff;
+        white-space: nowrap;
+    }
+
+    .hospital-table tbody tr:hover {
+        background: #f8fbff;
+    }
+
+    .hospital-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .hospital-cell {
+        display: grid;
+        gap: 0.15rem;
+    }
+
+    .hospital-link {
+        color: #1f365b;
+        text-decoration: none;
+    }
+
+    .hospital-link:hover {
+        text-decoration: underline;
+    }
+
+    .slug {
+        margin: 0;
+        color: #64748b;
+        font-size: 0.82rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .row-actions {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+
+    .row-actions a {
+        border: 1px solid #bfd2f1;
+        border-radius: 999px;
+        padding: 0.2rem 0.6rem;
+        text-decoration: none;
+        color: #1f4f95;
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease;
+    }
+
+    .row-actions a:hover {
+        background: #edf4ff;
+        border-color: #9cb9e5;
+    }
+
+    .hospital-cards {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: none;
+        gap: 0.6rem;
+    }
+
+    .hospital-cards li {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        padding: 0.7rem;
+        display: grid;
+        gap: 0.5rem;
+        background: #ffffff;
+    }
+
+    .card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .card-metrics {
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .card-metrics div {
+        border: 1px solid #e4ecfb;
+        border-radius: 8px;
+        padding: 0.45rem 0.5rem;
+        background: #f9fbff;
+    }
+
+    .card-metrics dt {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+    }
+
+    .card-metrics dd {
+        margin: 0.25rem 0 0;
+        font-weight: 700;
+        color: #1f365b;
+    }
+
     .empty-state {
-        margin-top: 1rem;
+        margin-top: 0.35rem;
+    }
+
+    .error {
+        margin: 0;
+        color: #991b1b;
+    }
+
+    .primary-action,
+    .secondary-action {
+        border-radius: 999px;
+        padding: 0.46rem 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease,
+            color 180ms ease;
+    }
+
+    .primary-action {
+        border: 1px solid #1f66d2;
+        background: #1f66d2;
+        color: #ffffff;
+    }
+
+    .primary-action:hover {
+        background: #1b57b3;
+        border-color: #1b57b3;
+    }
+
+    .secondary-action {
+        border: 1px solid #bfd2f1;
+        background: #ffffff;
+        color: #1f4f95;
+    }
+
+    .secondary-action:hover {
+        background: #edf4ff;
+    }
+
+    .create-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.42);
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+    }
+
+    .create-modal {
+        width: min(30rem, 100%);
+        background: #ffffff;
+        border-radius: 14px;
+        border: 1px solid #d5e2f8;
+        box-shadow: 0 24px 42px rgba(15, 23, 42, 0.22);
+        padding: 0.95rem;
+        display: grid;
+        gap: 0.65rem;
+    }
+
+    .create-modal-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.6rem;
+        align-items: center;
+    }
+
+    .create-modal-header h2 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    .icon-close {
+        border: 1px solid #c6d6f2;
+        background: #ffffff;
+        color: #34527e;
+        border-radius: 8px;
+        width: 2rem;
+        height: 2rem;
+        font-size: 1.2rem;
+        line-height: 1;
+        cursor: pointer;
     }
 
     .create-form {
-        margin-top: 0.9rem;
         display: grid;
         gap: 0.65rem;
     }
@@ -173,55 +796,61 @@ const hospitals = hospitalsResult.data;
     }
 
     .create-form input {
+        height: 2.5rem;
         border: 1px solid #c9d8f2;
-        border-radius: 9px;
-        padding: 0.55rem 0.65rem;
-    }
-
-    .create-form button {
-        width: fit-content;
-        border: none;
-        border-radius: 999px;
-        background: #1f66d2;
-        color: #fff;
-        font-weight: 600;
-        padding: 0.45rem 0.9rem;
-        cursor: pointer;
-    }
-
-    .hospital-list {
-        list-style: none;
-        margin: 1rem 0 0;
-        padding: 0;
-        display: grid;
-        gap: 0.55rem;
-    }
-
-    .hospital-list li {
-        border: 1px solid #dce6f7;
         border-radius: 10px;
-        padding: 0.7rem 0.8rem;
+        padding: 0 0.7rem;
+    }
+
+    .create-form input::placeholder {
+        color: #94a3b8;
+    }
+
+    .create-actions {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        justify-content: end;
+        gap: 0.55rem;
+        flex-wrap: wrap;
     }
 
-    .hospital-list a {
-        color: #1f365b;
-        text-decoration: none;
-        display: flex;
-        gap: 0.45rem;
-        align-items: baseline;
+    .create-form button[disabled] {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 
-    .slug {
-        color: #6b7280;
-        font-size: 0.85rem;
+    @media (max-width: 960px) {
+        .hospital-table {
+            min-width: 0;
+        }
+
+        .table-wrap {
+            display: none;
+        }
+
+        .hospital-cards {
+            display: grid;
+        }
     }
 
-    .inactive,
-    .error {
-        color: #991b1b;
-        font-size: 0.85rem;
+    @media (max-width: 620px) {
+        .command-bar {
+            grid-template-columns: 1fr;
+        }
+
+        .field-status {
+            min-width: 0;
+        }
+
+        .card-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .create-actions {
+            justify-content: stretch;
+        }
+
+        .create-actions > * {
+            flex: 1 1 auto;
+        }
     }
 </style>

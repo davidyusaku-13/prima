@@ -1,5 +1,6 @@
 ---
 import Layout from "../../../layouts/Layout.astro";
+import AdminBadge from "../../../components/admin/AdminBadge.astro";
 import HospitalSubpageHeader from "../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../utils/admin-api";
 
@@ -18,6 +19,16 @@ type Hospital = {
     slug: string;
     is_active: boolean;
     created_at: string;
+};
+
+type HospitalUser = {
+    clerk_id: string;
+};
+
+type HospitalInvite = {
+    id: number;
+    expires_at: string;
+    consumed_at: string | null;
 };
 
 type HospitalAdmin = {
@@ -47,8 +58,24 @@ const fallbackProbe: AdminProbe = {
     hospital_id: 0,
 };
 const fallbackHospitals: Hospital[] = [];
+const fallbackUsers: HospitalUser[] = [];
+const fallbackInvites: HospitalInvite[] = [];
 const fallbackAdmins: HospitalAdmin[] = [];
 const fallbackCandidates: AdminCandidate[] = [];
+
+const candidateStatusLabel: Record<AdminCandidate["status"], string> = {
+    unassigned: "Unassigned",
+    member: "Member",
+    already_admin: "Already Admin",
+    assigned_elsewhere: "Assigned Elsewhere",
+};
+
+const candidateStatusTone: Record<AdminCandidate["status"], "success" | "info" | "warning" | "danger"> = {
+    unassigned: "success",
+    member: "info",
+    already_admin: "warning",
+    assigned_elsewhere: "danger",
+};
 
 let actionResult = "";
 let actionError = "";
@@ -106,6 +133,7 @@ if (probeResult.unauthorized) {
     return Astro.redirect("/");
 }
 const adminInfo = probeResult.data;
+const isSuperadmin = adminInfo.role === "superadmin";
 
 const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
 if (hospitalsResult.unauthorized) {
@@ -116,9 +144,23 @@ if (!hospital) {
     return Astro.redirect("/admin/hospitals");
 }
 
+const usersResult = await fetchAdminJson(token, `/admin/hospitals/${encodeURIComponent(slug)}/users`, fallbackUsers);
+if (usersResult.unauthorized) {
+    return Astro.redirect("/");
+}
+
+const invitesResult = await fetchAdminJson(
+    token,
+    `/admin/hospitals/${encodeURIComponent(slug)}/invites`,
+    fallbackInvites,
+);
+if (invitesResult.unauthorized) {
+    return Astro.redirect("/");
+}
+
 let hospitalAdmins = fallbackAdmins;
 let adminCandidates = fallbackCandidates;
-if (adminInfo.role === "superadmin") {
+if (isSuperadmin) {
     const adminsResult = await fetchAdminJson(
         token,
         `/admin/hospitals/${encodeURIComponent(slug)}/admins`,
@@ -139,13 +181,45 @@ if (adminInfo.role === "superadmin") {
     }
     adminCandidates = candidatesResult.data;
 }
+
+const now = Date.now();
+const activeInviteCount = invitesResult.data.filter((invite) => {
+    if (invite.consumed_at) {
+        return false;
+    }
+    const expiresAt = new Date(invite.expires_at).getTime();
+    return Number.isFinite(expiresAt) && expiresAt > now;
+}).length;
+const usedInviteCount = invitesResult.data.filter((invite) => Boolean(invite.consumed_at)).length;
+
+const headerStats = [
+    { label: "Users", value: String(usersResult.data.length) },
+    { label: "Representatives", value: String(hospitalAdmins.length) },
+    { label: "Active Invites", value: String(activeInviteCount) },
+    { label: "Used Invites", value: String(usedInviteCount) },
+];
 ---
 
 <Layout title={`Hospital ${hospital.name}`}>
-    <section class="panel">
-        <HospitalSubpageHeader slug={hospital.slug} label={hospital.name} activeTab="overview" />
+    <section class="panel workspace">
+        <HospitalSubpageHeader
+            slug={hospital.slug}
+            label={hospital.name}
+            activeTab="overview"
+            isActive={hospital.is_active}
+            stats={headerStats}
+        >
+            <div slot="actions" class="header-actions">
+                <a href={`/admin/hospitals/${hospital.slug}/users`} class="quick-action">Users</a>
+                <a href={`/admin/hospitals/${hospital.slug}/invites`} class="quick-action">Invite Links</a>
+            </div>
+        </HospitalSubpageHeader>
 
-        {actionResult && <p class="message" role="status">{actionResult}</p>}
+        {actionResult && (
+            <p class="message" role="status">
+                {actionResult}
+            </p>
+        )}
         {actionError && (
             <p class="message error" role="alert">
                 {actionError}
@@ -153,63 +227,104 @@ if (adminInfo.role === "superadmin") {
         )}
 
         {
-            adminInfo.role === "superadmin" && (
-                <>
-                    <h2 id="representatives">Current Representatives</h2>
-                    {hospitalAdmins.length === 0 && <p class="subtle">No representatives assigned yet.</p>}
+            isSuperadmin ? (
+                <div class="split-layout">
+                    <section class="content-panel" aria-labelledby="representatives-heading">
+                        <div class="section-head">
+                            <h2 id="representatives-heading">Current Representatives</h2>
+                            <AdminBadge
+                                label={`${hospitalAdmins.length} assigned`}
+                                tone="info"
+                                showDot={false}
+                            />
+                        </div>
 
-                    <ul class="admin-list">
-                        {
-                            hospitalAdmins.map((admin) => (
-                                <li>
-                                    <div class="identity">
-                                        <strong>{admin.name}</strong>
-                                        {admin.email && <span class="subtle">&lt;{admin.email}&gt;</span>}
-                                        {admin.username && <span class="subtle">@{admin.username}</span>}
-                                    </div>
-                                    <form
-                                        method="post"
-                                        data-pending-label="Removing..."
-                                        data-confirm="Remove this representative from this hospital?"
-                                    >
-                                        <input type="hidden" name="_action" value="remove" />
-                                        <input type="hidden" name="user_clerk_id" value={admin.clerk_id} />
-                                        <button type="submit" class="danger">Remove</button>
-                                    </form>
-                                </li>
-                            ))
-                        }
-                    </ul>
+                        {hospitalAdmins.length === 0 ? (
+                            <p class="subtle">No representatives assigned yet.</p>
+                        ) : (
+                            <ul class="data-list">
+                                {
+                                    hospitalAdmins.map((admin) => (
+                                        <li>
+                                            <div class="identity">
+                                                <strong>{admin.name}</strong>
+                                                {admin.email && <span class="subtle">&lt;{admin.email}&gt;</span>}
+                                                {admin.username && <span class="subtle">@{admin.username}</span>}
+                                            </div>
+                                            <form
+                                                method="post"
+                                                data-pending-label="Removing..."
+                                                data-confirm="Remove this representative from this hospital?"
+                                            >
+                                                <input type="hidden" name="_action" value="remove" />
+                                                <input type="hidden" name="user_clerk_id" value={admin.clerk_id} />
+                                                <button type="submit" class="danger">Remove</button>
+                                            </form>
+                                        </li>
+                                    ))
+                                }
+                            </ul>
+                        )}
+                    </section>
 
-                    <h2>Assign Representatives</h2>
-                    <ul class="candidate-list">
-                        {
-                            adminCandidates.map((candidate) => (
-                                <li>
-                                    <div class="identity">
-                                        <strong>{candidate.name}</strong>
-                                        {candidate.email && <span class="subtle">&lt;{candidate.email}&gt;</span>}
-                                        {candidate.username && <span class="subtle">@{candidate.username}</span>}
-                                        <span class={`status status-${candidate.status}`}>
-                                            {candidate.status === "unassigned" && "Unassigned"}
-                                            {candidate.status === "member" && "Member"}
-                                            {candidate.status === "already_admin" && "Already admin"}
-                                            {candidate.status === "assigned_elsewhere" &&
-                                                `Assigned to ${candidate.membership_hospital_slug || "another hospital"}`}
-                                        </span>
-                                    </div>
-                                    <form method="post" data-pending-label="Assigning...">
-                                        <input type="hidden" name="_action" value="assign" />
-                                        <input type="hidden" name="user_clerk_id" value={candidate.clerk_id} />
-                                        <button type="submit" disabled={!candidate.assignable}>
-                                            Assign
-                                        </button>
-                                    </form>
-                                </li>
-                            ))
-                        }
-                    </ul>
-                </>
+                    <section class="content-panel" aria-labelledby="assign-heading">
+                        <div class="section-head">
+                            <h2 id="assign-heading">Assign Representatives</h2>
+                            <AdminBadge
+                                label={`${adminCandidates.filter((candidate) => candidate.assignable).length} assignable`}
+                                tone="success"
+                                showDot={false}
+                            />
+                        </div>
+
+                        {adminCandidates.length === 0 ? (
+                            <p class="subtle">No candidates found.</p>
+                        ) : (
+                            <ul class="data-list">
+                                {
+                                    adminCandidates.map((candidate) => (
+                                        <li>
+                                            <div class="identity">
+                                                <strong>{candidate.name}</strong>
+                                                {candidate.email && <span class="subtle">&lt;{candidate.email}&gt;</span>}
+                                                {candidate.username && <span class="subtle">@{candidate.username}</span>}
+                                                <AdminBadge
+                                                    label={
+                                                        candidate.status === "assigned_elsewhere"
+                                                            ? `Assigned to ${
+                                                                  candidate.membership_hospital_slug ||
+                                                                  "another hospital"
+                                                              }`
+                                                            : candidateStatusLabel[candidate.status]
+                                                    }
+                                                    tone={candidateStatusTone[candidate.status]}
+                                                />
+                                            </div>
+                                            <form method="post" data-pending-label="Assigning...">
+                                                <input type="hidden" name="_action" value="assign" />
+                                                <input
+                                                    type="hidden"
+                                                    name="user_clerk_id"
+                                                    value={candidate.clerk_id}
+                                                />
+                                                <button type="submit" disabled={!candidate.assignable}>
+                                                    Assign
+                                                </button>
+                                            </form>
+                                        </li>
+                                    ))
+                                }
+                            </ul>
+                        )}
+                    </section>
+                </div>
+            ) : (
+                <section class="content-panel" aria-labelledby="overview-note-heading">
+                    <h2 id="overview-note-heading">Representative management is limited to superadmins.</h2>
+                    <p class="subtle">
+                        You can still view hospital users and invite links through the tabs above.
+                    </p>
+                </section>
             )
         }
     </section>
@@ -253,13 +368,80 @@ if (adminInfo.role === "superadmin") {
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
-    h2 {
-        margin: 1rem 0 0.55rem;
-        font-size: 1rem;
+    .workspace {
+        display: grid;
+        gap: 0.9rem;
     }
 
-    .admin-list,
-    .candidate-list {
+    .header-actions {
+        display: flex;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+    }
+
+    .quick-action {
+        text-decoration: none;
+        border: 1px solid #bdd2f2;
+        border-radius: 999px;
+        padding: 0.3rem 0.72rem;
+        color: #1f4f95;
+        font-weight: 600;
+        font-size: 0.84rem;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease;
+    }
+
+    .quick-action:hover {
+        background: #edf4ff;
+        border-color: #9ebde8;
+    }
+
+    .message {
+        margin: 0;
+        color: #1f365b;
+    }
+
+    .message.error {
+        color: #991b1b;
+    }
+
+    .split-layout {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .content-panel {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        background: #fbfdff;
+        padding: 0.75rem;
+        display: grid;
+        gap: 0.65rem;
+    }
+
+    .section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.6rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    h2 {
+        margin: 0;
+        font-size: 1rem;
+        color: #1f365b;
+    }
+
+    .subtle {
+        color: #6b7280;
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    .data-list {
         list-style: none;
         margin: 0;
         padding: 0;
@@ -267,16 +449,16 @@ if (adminInfo.role === "superadmin") {
         gap: 0.55rem;
     }
 
-    .admin-list li,
-    .candidate-list li {
+    .data-list li {
         border: 1px solid #dce6f7;
         border-radius: 10px;
-        padding: 0.65rem 0.75rem;
+        padding: 0.65rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 0.6rem;
         flex-wrap: wrap;
+        background: #ffffff;
     }
 
     .identity {
@@ -286,19 +468,19 @@ if (adminInfo.role === "superadmin") {
         align-items: baseline;
     }
 
-    .subtle {
-        color: #6b7280;
-        font-size: 0.87rem;
-    }
-
     button {
-        border: none;
+        border: 1px solid #1f66d2;
         border-radius: 999px;
         background: #1f66d2;
         color: #fff;
         font-weight: 600;
-        padding: 0.45rem 0.9rem;
+        padding: 0.4rem 0.85rem;
         cursor: pointer;
+    }
+
+    button:hover {
+        background: #1b57b3;
+        border-color: #1b57b3;
     }
 
     button:disabled {
@@ -307,44 +489,18 @@ if (adminInfo.role === "superadmin") {
     }
 
     .danger {
-        background: #c62828;
+        background: #b42323;
+        border-color: #b42323;
     }
 
-    .status {
-        font-size: 0.72rem;
-        padding: 0.15rem 0.5rem;
-        border-radius: 999px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+    .danger:hover {
+        background: #921f1f;
+        border-color: #921f1f;
     }
 
-    .status-unassigned {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .status-member {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .status-already_admin {
-        background: #ede9fe;
-        color: #6d28d9;
-    }
-
-    .status-assigned_elsewhere {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    .message {
-        margin-top: 0.65rem;
-        color: #1f365b;
-    }
-
-    .message.error {
-        color: #991b1b;
+    @media (max-width: 960px) {
+        .split-layout {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
