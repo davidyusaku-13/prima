@@ -1,0 +1,192 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { fetchAdminJson } from "../../utils/admin-api";
+
+const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
+const token = Astro.locals.authToken ?? null;
+
+type Hospital = {
+    id: number;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    created_at: string;
+};
+
+const fallbackHospitals: Hospital[] = [];
+
+let createError = "";
+
+if (Astro.request.method === "POST") {
+    if (!token) {
+        return Astro.redirect("/");
+    }
+
+    const formData = await Astro.request.formData();
+    const name = String(formData.get("name") ?? "").trim();
+    const slug = String(formData.get("slug") ?? "").trim();
+
+    if (!name) {
+        createError = "Hospital name is required.";
+    } else {
+        const response = await fetch(`${API_URL}/admin/hospitals`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name, slug }),
+        }).catch(() => null);
+
+        if (response?.ok) {
+            const createdSlug = (((await response.json()) as Hospital).slug ?? "").trim();
+            if (createdSlug) {
+                return Astro.redirect(`/admin/hospitals/${createdSlug}`);
+            }
+            return Astro.redirect("/admin/hospitals");
+        }
+
+        if (response?.status === 401 || response?.status === 403) {
+            return Astro.redirect("/");
+        }
+
+        createError = "Failed to create hospital. Ensure slug is unique.";
+    }
+}
+
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+if (hospitalsResult.unauthorized) {
+    return Astro.redirect("/");
+}
+const hospitals = hospitalsResult.data;
+---
+
+<Layout title="Admin Hospitals">
+    <section class="panel">
+        <p class="eyebrow">Admin</p>
+        <h1>Hospitals</h1>
+        <p class="subtle">Create and manage tenant hospitals.</p>
+
+        <form class="create-form" method="post">
+            <label>
+                Hospital name
+                <input name="name" type="text" required />
+            </label>
+            <label>
+                Slug (optional)
+                <input name="slug" type="text" placeholder="auto-generated-from-name" />
+            </label>
+            <button type="submit">Create Hospital</button>
+        </form>
+
+        {createError && <p class="error">{createError}</p>}
+
+        <ul class="hospital-list">
+            {
+                hospitals.map((hospital) => (
+                    <li>
+                        <a href={`/admin/hospitals/${hospital.slug}`}>
+                            <strong>{hospital.name}</strong>
+                            <span class="slug">/{hospital.slug}</span>
+                        </a>
+                        {!hospital.is_active && <span class="inactive">inactive</span>}
+                    </li>
+                ))
+            }
+        </ul>
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .eyebrow {
+        margin: 0;
+        color: #2f76df;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0 0 0.4rem;
+        font-size: clamp(1.25rem, 3vw, 1.6rem);
+    }
+
+    .subtle {
+        margin: 0;
+        color: #516178;
+    }
+
+    .create-form {
+        margin-top: 0.9rem;
+        display: grid;
+        gap: 0.65rem;
+    }
+
+    .create-form label {
+        display: grid;
+        gap: 0.3rem;
+        font-size: 0.9rem;
+    }
+
+    .create-form input {
+        border: 1px solid #c9d8f2;
+        border-radius: 9px;
+        padding: 0.55rem 0.65rem;
+    }
+
+    .create-form button {
+        width: fit-content;
+        border: none;
+        border-radius: 999px;
+        background: #1f66d2;
+        color: #fff;
+        font-weight: 600;
+        padding: 0.45rem 0.9rem;
+        cursor: pointer;
+    }
+
+    .hospital-list {
+        list-style: none;
+        margin: 1rem 0 0;
+        padding: 0;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .hospital-list li {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        padding: 0.7rem 0.8rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .hospital-list a {
+        color: #1f365b;
+        text-decoration: none;
+        display: flex;
+        gap: 0.45rem;
+        align-items: baseline;
+    }
+
+    .slug {
+        color: #6b7280;
+        font-size: 0.85rem;
+    }
+
+    .inactive,
+    .error {
+        color: #991b1b;
+        font-size: 0.85rem;
+    }
+</style>

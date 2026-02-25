@@ -1,0 +1,353 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import { fetchAdminJson } from "../../../utils/admin-api";
+
+const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
+const token = Astro.locals.authToken ?? null;
+const slug = String(Astro.params.slug ?? "").trim();
+
+type AdminProbe = {
+    role: string;
+    hospital_id: number;
+};
+
+type Hospital = {
+    id: number;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    created_at: string;
+};
+
+type HospitalAdmin = {
+    clerk_id: string;
+    name: string;
+    email: string;
+    username: string;
+    assigned_at: string;
+};
+
+type AdminCandidate = {
+    clerk_id: string;
+    name: string;
+    email: string;
+    username: string;
+    role: string;
+    is_active: boolean;
+    membership_hospital_id: number;
+    membership_hospital_slug: string;
+    membership_role: string;
+    assignable: boolean;
+    status: "unassigned" | "member" | "already_admin" | "assigned_elsewhere";
+};
+
+const fallbackProbe: AdminProbe = {
+    role: "",
+    hospital_id: 0,
+};
+const fallbackHospitals: Hospital[] = [];
+const fallbackAdmins: HospitalAdmin[] = [];
+const fallbackCandidates: AdminCandidate[] = [];
+
+let actionResult = "";
+let actionError = "";
+
+if (Astro.request.method === "POST") {
+    if (!token) {
+        return Astro.redirect("/");
+    }
+
+    const formData = await Astro.request.formData();
+    const action = String(formData.get("_action") ?? "").trim();
+    const userClerkID = String(formData.get("user_clerk_id") ?? "").trim();
+
+    if (!action || !userClerkID) {
+        actionError = "Action and user identifier are required.";
+    } else {
+        const endpoint = `${API_URL}/admin/hospitals/${encodeURIComponent(slug)}/admins`;
+        const response =
+            action === "assign"
+                ? await fetch(endpoint, {
+                        method: "POST",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ user_clerk_id: userClerkID }),
+                    }).catch(() => null)
+                : action === "remove"
+                  ? await fetch(`${endpoint}/${encodeURIComponent(userClerkID)}`, {
+                        method: "DELETE",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }).catch(() => null)
+                  : null;
+
+        if (!response) {
+            actionError = "Request failed. Please try again.";
+        } else if (response.status === 401 || response.status === 403) {
+            return Astro.redirect("/");
+        } else if (response.ok) {
+            actionResult =
+                action === "assign"
+                    ? "Representative assigned successfully."
+                    : "Representative removed successfully.";
+        } else {
+            const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+            actionError = payload?.error ?? "Representative action failed.";
+        }
+    }
+}
+
+const probeResult = await fetchAdminJson(token, "/admin", fallbackProbe);
+if (probeResult.unauthorized) {
+    return Astro.redirect("/");
+}
+const adminInfo = probeResult.data;
+
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+if (hospitalsResult.unauthorized) {
+    return Astro.redirect("/");
+}
+const hospital = hospitalsResult.data.find((entry) => entry.slug === slug);
+if (!hospital) {
+    return Astro.redirect("/admin/hospitals");
+}
+
+let hospitalAdmins = fallbackAdmins;
+let adminCandidates = fallbackCandidates;
+if (adminInfo.role === "superadmin") {
+    const adminsResult = await fetchAdminJson(
+        token,
+        `/admin/hospitals/${encodeURIComponent(slug)}/admins`,
+        fallbackAdmins,
+    );
+    if (adminsResult.unauthorized) {
+        return Astro.redirect("/");
+    }
+    hospitalAdmins = adminsResult.data;
+
+    const candidatesResult = await fetchAdminJson(
+        token,
+        `/admin/hospitals/${encodeURIComponent(slug)}/admin-candidates`,
+        fallbackCandidates,
+    );
+    if (candidatesResult.unauthorized) {
+        return Astro.redirect("/");
+    }
+    adminCandidates = candidatesResult.data;
+}
+---
+
+<Layout title={`Hospital ${hospital.name}`}>
+    <section class="panel">
+        <p class="eyebrow">Hospital</p>
+        <h1>{hospital.name}</h1>
+        <p class="slug">slug: {hospital.slug}</p>
+
+        <div class="link-row">
+            <a href={`/admin/hospitals/${hospital.slug}/users`}>Users</a>
+            <a href={`/admin/hospitals/${hospital.slug}/invites`}>Invite Links</a>
+        </div>
+
+        {
+            adminInfo.role === "superadmin" && (
+                <>
+                    <h2>Current Representatives</h2>
+                    {hospitalAdmins.length === 0 && <p class="subtle">No representatives assigned yet.</p>}
+
+                    <ul class="admin-list">
+                        {
+                            hospitalAdmins.map((admin) => (
+                                <li>
+                                    <div class="identity">
+                                        <strong>{admin.name}</strong>
+                                        {admin.email && <span class="subtle">&lt;{admin.email}&gt;</span>}
+                                        {admin.username && <span class="subtle">@{admin.username}</span>}
+                                    </div>
+                                    <form method="post">
+                                        <input type="hidden" name="_action" value="remove" />
+                                        <input type="hidden" name="user_clerk_id" value={admin.clerk_id} />
+                                        <button type="submit" class="danger">Remove</button>
+                                    </form>
+                                </li>
+                            ))
+                        }
+                    </ul>
+
+                    <h2>Assign Representatives</h2>
+                    <ul class="candidate-list">
+                        {
+                            adminCandidates.map((candidate) => (
+                                <li>
+                                    <div class="identity">
+                                        <strong>{candidate.name}</strong>
+                                        {candidate.email && <span class="subtle">&lt;{candidate.email}&gt;</span>}
+                                        {candidate.username && <span class="subtle">@{candidate.username}</span>}
+                                        <span class={`status status-${candidate.status}`}>
+                                            {candidate.status === "unassigned" && "Unassigned"}
+                                            {candidate.status === "member" && "Member"}
+                                            {candidate.status === "already_admin" && "Already admin"}
+                                            {candidate.status === "assigned_elsewhere" &&
+                                                `Assigned to ${candidate.membership_hospital_slug || "another hospital"}`}
+                                        </span>
+                                    </div>
+                                    <form method="post">
+                                        <input type="hidden" name="_action" value="assign" />
+                                        <input type="hidden" name="user_clerk_id" value={candidate.clerk_id} />
+                                        <button type="submit" disabled={!candidate.assignable}>
+                                            Assign
+                                        </button>
+                                    </form>
+                                </li>
+                            ))
+                        }
+                    </ul>
+                </>
+            )
+        }
+
+        {actionResult && <p class="message">{actionResult}</p>}
+        {actionError && <p class="message error">{actionError}</p>}
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .eyebrow {
+        margin: 0;
+        color: #2f76df;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0.1rem 0 0.25rem;
+    }
+
+    .slug {
+        margin: 0;
+        color: #6b7280;
+    }
+
+    .link-row {
+        margin-top: 0.9rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .link-row a {
+        text-decoration: none;
+        border: 1px solid #c5d6f2;
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        color: #1f365b;
+        background: #f7faff;
+    }
+
+    h2 {
+        margin: 1rem 0 0.55rem;
+        font-size: 1rem;
+    }
+
+    .admin-list,
+    .candidate-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .admin-list li,
+    .candidate-list li {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        padding: 0.65rem 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .identity {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        align-items: baseline;
+    }
+
+    .subtle {
+        color: #6b7280;
+        font-size: 0.87rem;
+    }
+
+    button {
+        border: none;
+        border-radius: 999px;
+        background: #1f66d2;
+        color: #fff;
+        font-weight: 600;
+        padding: 0.45rem 0.9rem;
+        cursor: pointer;
+    }
+
+    button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+
+    .danger {
+        background: #c62828;
+    }
+
+    .status {
+        font-size: 0.72rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .status-unassigned {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .status-member {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .status-already_admin {
+        background: #ede9fe;
+        color: #6d28d9;
+    }
+
+    .status-assigned_elsewhere {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .message {
+        margin-top: 0.65rem;
+        color: #1f365b;
+    }
+
+    .message.error {
+        color: #991b1b;
+    }
+</style>

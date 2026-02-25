@@ -1,0 +1,106 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/astro/components";
+
+const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
+const inviteToken = String(Astro.url.searchParams.get("invite") ?? "").trim();
+const authToken = Astro.locals.authToken ?? null;
+
+let claimError = "";
+
+if (inviteToken && authToken) {
+    const response = await fetch(`${API_URL}/invites/claim`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token: inviteToken }),
+    }).catch(() => null);
+
+    if (response?.ok) {
+        return Astro.redirect("/");
+    }
+
+    if (response) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        claimError = body?.error ?? "Unable to claim invite token.";
+    } else {
+        claimError = "Unable to reach API server.";
+    }
+}
+---
+
+<Layout title="Volunteer Registration">
+    <section class="panel">
+        <p class="eyebrow">Volunteer Registration</p>
+        <h1>Join a hospital</h1>
+
+        {!inviteToken && <p class="error">Invite token is missing from URL.</p>}
+        {claimError && <p class="error">{claimError}</p>}
+
+        <SignedOut>
+            <p>Sign in or create an account, then return to this invite link to complete registration.</p>
+            <div class="actions">
+                <SignInButton mode="modal" class="action-btn action-secondary" set:text={"Sign In"} />
+                <SignUpButton mode="modal" class="action-btn action-primary" set:text={"Create Account"} />
+            </div>
+        </SignedOut>
+
+        <SignedIn>
+            {!claimError && inviteToken && <p>Claiming invite...</p>}
+            {claimError && <p>Invite could not be claimed. Contact hospital admin for a new link.</p>}
+        </SignedIn>
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .eyebrow {
+        margin: 0;
+        color: #2f76df;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0.2rem 0 0.55rem;
+    }
+
+    .actions {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        border-radius: 999px;
+        padding: 0.45rem 0.9rem;
+        text-decoration: none;
+    }
+
+    .action-secondary {
+        border: 1px solid #c5d6f2;
+        background: #f7faff;
+        color: #1f365b;
+    }
+
+    .action-primary {
+        border: 1px solid #1f66d2;
+        background: #1f66d2;
+        color: #fff;
+    }
+
+    .error {
+        color: #991b1b;
+    }
+</style>

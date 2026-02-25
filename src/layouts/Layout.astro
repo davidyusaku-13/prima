@@ -6,7 +6,7 @@ import {
     SignInButton,
     SignUpButton,
 } from "@clerk/astro/components";
-import { probeAdminAccess } from "../utils/admin-api";
+import { fetchAdminJson } from "../utils/admin-api";
 
 import "@/styles/global.css";
 
@@ -28,7 +28,17 @@ const isNavActive = (href: string) =>
         ? pathname === "/"
         : pathname === href || pathname.startsWith(`${href}/`);
 
-const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
+type AdminProbe = {
+    role: string;
+    hospital_id: number;
+};
+
+const adminProbe = await fetchAdminJson<AdminProbe>(Astro.locals.authToken ?? null, "/admin", {
+    role: "",
+    hospital_id: 0,
+});
+const canAccessAdmin = !adminProbe.unauthorized && Boolean(adminProbe.data.role);
+const isSuperadmin = adminProbe.data.role === "superadmin";
 ---
 
 <!doctype html>
@@ -139,16 +149,31 @@ const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
                                         <span>Health</span>
                                     </a>
                                     <a
-                                        href="/admin/users"
+                                        href="/admin/hospitals"
                                         class:list={[
                                             "admin-popover-link",
-                                            { "is-active": pathname === "/admin/users" },
+                                            { "is-active": pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") },
                                         ]}
-                                        aria-current={pathname === "/admin/users" ? "page" : undefined}
+                                        aria-current={pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") ? "page" : undefined}
                                     >
-                                        <i class="fa-solid fa-fw fa-users sub-nav-icon" aria-hidden="true"></i>
-                                        <span>Users</span>
+                                        <i class="fa-solid fa-fw fa-hospital sub-nav-icon" aria-hidden="true"></i>
+                                        <span>Hospitals</span>
                                     </a>
+                                    {
+                                        isSuperadmin && (
+                                            <a
+                                                href="/admin/users"
+                                                class:list={[
+                                                    "admin-popover-link",
+                                                    { "is-active": pathname === "/admin/users" },
+                                                ]}
+                                                aria-current={pathname === "/admin/users" ? "page" : undefined}
+                                            >
+                                                <i class="fa-solid fa-fw fa-users sub-nav-icon" aria-hidden="true"></i>
+                                                <span>Users</span>
+                                            </a>
+                                        )
+                                    }
                                 </div>
 
                                 <details id="admin-nav-group" class="nav-group" open={isAdminRoute}>
@@ -207,21 +232,41 @@ const canAccessAdmin = await probeAdminAccess(Astro.locals.authToken ?? null);
                                             <span class="sub-nav-text">Health</span>
                                         </a>
                                         <a
-                                            href="/admin/users"
+                                            href="/admin/hospitals"
                                             class:list={[
                                                 "sub-nav-link",
-                                                { "is-active": pathname === "/admin/users" },
+                                                { "is-active": pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") },
                                             ]}
-                                            aria-current={pathname === "/admin/users" ? "page" : undefined}
-                                            title="Users"
-                                            aria-label="Users"
+                                            aria-current={pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") ? "page" : undefined}
+                                            title="Hospitals"
+                                            aria-label="Hospitals"
                                         >
                                             <i
-                                                class="fa-solid fa-fw fa-users sub-nav-icon"
+                                                class="fa-solid fa-fw fa-hospital sub-nav-icon"
                                                 aria-hidden="true"
                                             ></i>
-                                            <span class="sub-nav-text">Users</span>
+                                            <span class="sub-nav-text">Hospitals</span>
                                         </a>
+                                        {
+                                            isSuperadmin && (
+                                                <a
+                                                    href="/admin/users"
+                                                    class:list={[
+                                                        "sub-nav-link",
+                                                        { "is-active": pathname === "/admin/users" },
+                                                    ]}
+                                                    aria-current={pathname === "/admin/users" ? "page" : undefined}
+                                                    title="Users"
+                                                    aria-label="Users"
+                                                >
+                                                    <i
+                                                        class="fa-solid fa-fw fa-users sub-nav-icon"
+                                                        aria-hidden="true"
+                                                    ></i>
+                                                    <span class="sub-nav-text">Users</span>
+                                                </a>
+                                            )
+                                        }
                                     </div>
                                 </details>
                             </>

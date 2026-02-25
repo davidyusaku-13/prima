@@ -1,0 +1,131 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+import { fetchAdminJson } from "../../../../utils/admin-api";
+
+const token = Astro.locals.authToken ?? null;
+const slug = String(Astro.params.slug ?? "").trim();
+
+type HospitalUser = {
+    clerk_id: string;
+    name: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    username: string;
+    role: string;
+    membership_role: string;
+    is_active: boolean;
+};
+
+const fallbackUsers: HospitalUser[] = [];
+
+const usersResult = await fetchAdminJson(token, `/admin/hospitals/${encodeURIComponent(slug)}/users`, fallbackUsers);
+if (usersResult.unauthorized) {
+    return Astro.redirect("/");
+}
+
+const users = usersResult.data;
+---
+
+<Layout title="Hospital Users">
+    <section class="panel">
+        <p class="eyebrow">Hospital Users</p>
+        <h1>{slug}</h1>
+        <p><a href={`/admin/hospitals/${slug}`}>Back to hospital</a></p>
+
+        <ul class="user-list">
+            {
+                users.map((user) => (
+                    <li>
+                        <span class="user-name">{user.name}</span>
+                        {user.email && <span class="muted">&lt;{user.email}&gt;</span>}
+                        <span class={`badge badge-${user.membership_role}`}>{user.membership_role}</span>
+                        {user.role !== user.membership_role && (
+                            <span class={`badge badge-role`}>global: {user.role}</span>
+                        )}
+                        {!user.is_active && <span class="badge badge-inactive">inactive</span>}
+                    </li>
+                ))
+            }
+        </ul>
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .eyebrow {
+        margin: 0;
+        color: #2f76df;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0.1rem 0 0.45rem;
+    }
+
+    .user-list {
+        list-style: none;
+        margin: 0.9rem 0 0;
+        padding: 0;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .user-list li {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        padding: 0.65rem 0.75rem;
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .user-name {
+        font-weight: 600;
+    }
+
+    .muted {
+        color: #6b7280;
+        font-size: 0.88rem;
+    }
+
+    .badge {
+        font-size: 0.72rem;
+        border-radius: 999px;
+        padding: 0.12rem 0.5rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .badge-user {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .badge-admin {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .badge-role {
+        background: #ede9fe;
+        color: #5b21b6;
+    }
+
+    .badge-inactive {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+</style>

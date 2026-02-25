@@ -1,0 +1,197 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+import { fetchAdminJson } from "../../../../utils/admin-api";
+
+const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
+const token = Astro.locals.authToken ?? null;
+const slug = String(Astro.params.slug ?? "").trim();
+
+type HospitalInvite = {
+    id: number;
+    hospital_id: number;
+    invite_role: string;
+    created_by_clerk_id: string;
+    expires_at: string;
+    consumed_at: string | null;
+    consumed_by_clerk_id?: string;
+    created_at: string;
+};
+
+const fallbackInvites: HospitalInvite[] = [];
+
+let createdInviteLink = "";
+let createError = "";
+
+if (Astro.request.method === "POST") {
+    if (!token) {
+        return Astro.redirect("/");
+    }
+
+    const formData = await Astro.request.formData();
+    const expiresInHours = Number(formData.get("expires_in_hours") ?? "72");
+
+    const response = await fetch(`${API_URL}/admin/hospitals/${encodeURIComponent(slug)}/invites`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            expires_in_hours: Number.isFinite(expiresInHours) ? expiresInHours : 72,
+        }),
+    }).catch(() => null);
+
+    if (response?.ok) {
+        const payload = (await response.json()) as {
+            invite_path: string;
+        };
+        createdInviteLink = new URL(payload.invite_path, Astro.url.origin).toString();
+    } else if (response?.status === 401 || response?.status === 403) {
+        return Astro.redirect("/");
+    } else {
+        createError = "Failed to generate invite.";
+    }
+}
+
+const invitesResult = await fetchAdminJson(
+    token,
+    `/admin/hospitals/${encodeURIComponent(slug)}/invites`,
+    fallbackInvites,
+);
+if (invitesResult.unauthorized) {
+    return Astro.redirect("/");
+}
+
+const invites = invitesResult.data;
+---
+
+<Layout title="Hospital Invites">
+    <section class="panel">
+        <p class="eyebrow">Hospital Invites</p>
+        <h1>{slug}</h1>
+        <p><a href={`/admin/hospitals/${slug}`}>Back to hospital</a></p>
+
+        <form method="post" class="invite-form">
+            <label>
+                Expires in (hours)
+                <input name="expires_in_hours" type="number" min="1" max="720" value="72" />
+            </label>
+            <button type="submit">Create Invite Link</button>
+        </form>
+
+        {createdInviteLink && <p class="invite-link">{createdInviteLink}</p>}
+        {createError && <p class="error">{createError}</p>}
+
+        <ul class="invite-list">
+            {
+                invites.map((invite) => (
+                    <li>
+                        <span>#{invite.id}</span>
+                        <span>expires {new Date(invite.expires_at).toLocaleString()}</span>
+                        {invite.consumed_at ? (
+                            <span class="consumed">used</span>
+                        ) : (
+                            <span class="fresh">available</span>
+                        )}
+                    </li>
+                ))
+            }
+        </ul>
+    </section>
+</Layout>
+
+<style>
+    .panel {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 16px;
+        padding: clamp(1rem, 2.5vw, 1.5rem);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .eyebrow {
+        margin: 0;
+        color: #2f76df;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    h1 {
+        margin: 0.1rem 0 0.45rem;
+    }
+
+    .invite-form {
+        margin-top: 0.9rem;
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        align-items: end;
+    }
+
+    .invite-form label {
+        display: grid;
+        gap: 0.3rem;
+    }
+
+    .invite-form input {
+        border: 1px solid #c9d8f2;
+        border-radius: 9px;
+        padding: 0.55rem 0.65rem;
+        width: 10rem;
+    }
+
+    .invite-form button {
+        border: none;
+        border-radius: 999px;
+        background: #1f66d2;
+        color: #fff;
+        font-weight: 600;
+        padding: 0.45rem 0.9rem;
+        cursor: pointer;
+    }
+
+    .invite-link {
+        margin-top: 0.75rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.88rem;
+        background: #f0f7ff;
+        border: 1px solid #d4e6fb;
+        padding: 0.6rem;
+        border-radius: 8px;
+        overflow-wrap: anywhere;
+    }
+
+    .error {
+        color: #991b1b;
+    }
+
+    .invite-list {
+        list-style: none;
+        margin: 1rem 0 0;
+        padding: 0;
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .invite-list li {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        padding: 0.65rem 0.75rem;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .fresh {
+        color: #166534;
+        font-weight: 600;
+    }
+
+    .consumed {
+        color: #991b1b;
+        font-weight: 600;
+    }
+</style>

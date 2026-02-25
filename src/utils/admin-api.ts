@@ -5,13 +5,22 @@ type AdminRequestResult<T> = {
     data: T;
 };
 
-type RequestInitWithRequiredHeaders = RequestInit & {
-    headers: HeadersInit;
+type RequestMethod = "GET" | "POST";
+
+type RequestOptions = {
+    method?: RequestMethod;
+    body?: string;
 };
 
-function buildAuthRequest(token: string): RequestInitWithRequiredHeaders {
+function buildAuthRequest(token: string, options: RequestOptions = {}): RequestInit {
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (options.body) {
+        headers["Content-Type"] = "application/json";
+    }
     return {
-        headers: { Authorization: `Bearer ${token}` },
+        method: options.method ?? "GET",
+        headers,
+        body: options.body,
     };
 }
 
@@ -36,7 +45,49 @@ export async function fetchAdminJson<T>(
         };
     }
 
-    const response = await fetch(`${API_URL}${path}`, buildAuthRequest(token)).catch(() => null);
+    const response = await fetch(`${API_URL}${path}`, buildAuthRequest(token, { method: "GET" })).catch(() => null);
+
+    if (!response || response.status === 401 || response.status === 403) {
+        return {
+            unauthorized: true,
+            data: fallback,
+        };
+    }
+
+    if (!response.ok) {
+        return {
+            unauthorized: false,
+            data: fallback,
+        };
+    }
+
+    const data = (await response.json()) as T;
+    return {
+        unauthorized: false,
+        data,
+    };
+}
+
+export async function postAdminJson<T>(
+    token: string | null,
+    path: string,
+    payload: unknown,
+    fallback: T,
+): Promise<AdminRequestResult<T>> {
+    if (!token) {
+        return {
+            unauthorized: true,
+            data: fallback,
+        };
+    }
+
+    const response = await fetch(
+        `${API_URL}${path}`,
+        buildAuthRequest(token, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
+    ).catch(() => null);
 
     if (!response || response.status === 401 || response.status === 403) {
         return {
