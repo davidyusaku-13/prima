@@ -5,6 +5,13 @@ type AdminRequestResult<T> = {
     data: T;
 };
 
+export type AdminStatusRequestResult<T> = {
+    unauthorized: boolean;
+    httpStatus: number;
+    ok: boolean;
+    data: T;
+};
+
 type RequestMethod = "GET" | "POST";
 
 type RequestOptions = {
@@ -64,6 +71,56 @@ export async function fetchAdminJson<T>(
     const data = (await response.json()) as T;
     return {
         unauthorized: false,
+        data,
+    };
+}
+
+async function parseJsonOrFallback<T>(response: Response, fallback: T): Promise<T> {
+    try {
+        return (await response.json()) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+export async function fetchAdminJsonWithStatus<T>(
+    token: string | null,
+    path: string,
+    fallback: T,
+): Promise<AdminStatusRequestResult<T>> {
+    if (!token) {
+        return {
+            unauthorized: true,
+            httpStatus: 401,
+            ok: false,
+            data: fallback,
+        };
+    }
+
+    const response = await fetch(`${API_URL}${path}`, buildAuthRequest(token, { method: "GET" })).catch(() => null);
+    if (!response) {
+        return {
+            unauthorized: false,
+            httpStatus: 0,
+            ok: false,
+            data: fallback,
+        };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        return {
+            unauthorized: true,
+            httpStatus: response.status,
+            ok: false,
+            data: fallback,
+        };
+    }
+
+    const data = await parseJsonOrFallback(response, fallback);
+    return {
+        unauthorized: false,
+        httpStatus: response.status,
+        ok: response.ok,
         data,
     };
 }
