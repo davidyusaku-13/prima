@@ -67,7 +67,7 @@ const hospitals = hospitalsResult.data;
         <h1>Hospitals</h1>
         <p class="subtle">Create and manage tenant hospitals.</p>
 
-        <form class="create-form" method="post">
+        <form class="create-form" method="post" data-pending-label="Creating...">
             <label>
                 Hospital name
                 <input name="name" type="text" required />
@@ -79,23 +79,54 @@ const hospitals = hospitalsResult.data;
             <button type="submit">Create Hospital</button>
         </form>
 
-        {createError && <p class="error">{createError}</p>}
+        {createError && (
+            <p class="error" role="alert">
+                {createError}
+            </p>
+        )}
 
-        <ul class="hospital-list">
-            {
-                hospitals.map((hospital) => (
-                    <li>
-                        <a href={`/admin/hospitals/${hospital.slug}`}>
-                            <strong>{hospital.name}</strong>
-                            <span class="slug">/{hospital.slug}</span>
-                        </a>
-                        {!hospital.is_active && <span class="inactive">inactive</span>}
-                    </li>
-                ))
-            }
-        </ul>
+        {hospitals.length === 0 ? (
+            <p class="subtle empty-state">No hospitals found.</p>
+        ) : (
+            <ul class="hospital-list">
+                {
+                    hospitals.map((hospital) => (
+                        <li>
+                            <a href={`/admin/hospitals/${hospital.slug}`}>
+                                <strong>{hospital.name}</strong>
+                                <span class="slug">/{hospital.slug}</span>
+                            </a>
+                            {!hospital.is_active && <span class="inactive">inactive</span>}
+                        </li>
+                    ))
+                }
+            </ul>
+        )}
     </section>
 </Layout>
+
+<script is:inline>
+    (() => {
+        const pendingForms = document.querySelectorAll("form[data-pending-label]");
+        for (const form of pendingForms) {
+            form.addEventListener("submit", (event) => {
+                const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
+                const button =
+                    submitter?.tagName === "BUTTON"
+                        ? submitter
+                        : form.querySelector("button[type='submit']");
+                if (!button || button.disabled) {
+                    return;
+                }
+
+                const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
+                button.setAttribute("aria-busy", "true");
+                button.textContent = pendingLabel;
+                button.disabled = true;
+            });
+        }
+    })();
+</script>
 
 <style>
     .panel {
@@ -123,6 +154,10 @@ const hospitals = hospitalsResult.data;
     .subtle {
         margin: 0;
         color: #516178;
+    }
+
+    .empty-state {
+        margin-top: 1rem;
     }
 
     .create-form {

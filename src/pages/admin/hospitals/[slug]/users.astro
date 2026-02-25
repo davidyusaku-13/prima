@@ -1,9 +1,18 @@
 ---
 import Layout from "../../../../layouts/Layout.astro";
+import HospitalSubpageHeader from "../../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../../utils/admin-api";
 
 const token = Astro.locals.authToken ?? null;
 const slug = String(Astro.params.slug ?? "").trim();
+
+type Hospital = {
+    id: number;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    created_at: string;
+};
 
 type HospitalUser = {
     clerk_id: string;
@@ -18,6 +27,14 @@ type HospitalUser = {
 };
 
 const fallbackUsers: HospitalUser[] = [];
+const fallbackHospitals: Hospital[] = [];
+
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+if (hospitalsResult.unauthorized) {
+    return Astro.redirect("/");
+}
+const hospital = hospitalsResult.data.find((entry) => entry.slug === slug);
+const hospitalLabel = hospital?.name ?? slug;
 
 const usersResult = await fetchAdminJson(token, `/admin/hospitals/${encodeURIComponent(slug)}/users`, fallbackUsers);
 if (usersResult.unauthorized) {
@@ -29,25 +46,27 @@ const users = usersResult.data;
 
 <Layout title="Hospital Users">
     <section class="panel">
-        <p class="eyebrow">Hospital Users</p>
-        <h1>{slug}</h1>
-        <p><a href={`/admin/hospitals/${slug}`}>Back to hospital</a></p>
+        <HospitalSubpageHeader slug={slug} label={hospitalLabel} activeTab="users" />
 
-        <ul class="user-list">
-            {
-                users.map((user) => (
-                    <li>
-                        <span class="user-name">{user.name}</span>
-                        {user.email && <span class="muted">&lt;{user.email}&gt;</span>}
-                        <span class={`badge badge-${user.membership_role}`}>{user.membership_role}</span>
-                        {user.role !== user.membership_role && (
-                            <span class={`badge badge-role`}>global: {user.role}</span>
-                        )}
-                        {!user.is_active && <span class="badge badge-inactive">inactive</span>}
-                    </li>
-                ))
-            }
-        </ul>
+        {users.length === 0 ? (
+            <p class="muted empty-state">No users found for this hospital.</p>
+        ) : (
+            <ul class="user-list">
+                {
+                    users.map((user) => (
+                        <li>
+                            <span class="user-name">{user.name}</span>
+                            {user.email && <span class="muted">&lt;{user.email}&gt;</span>}
+                            <span class={`badge badge-${user.membership_role}`}>{user.membership_role}</span>
+                            {user.role !== user.membership_role && (
+                                <span class={`badge badge-role`}>global: {user.role}</span>
+                            )}
+                            {!user.is_active && <span class="badge badge-inactive">inactive</span>}
+                        </li>
+                    ))
+                }
+            </ul>
+        )}
     </section>
 </Layout>
 
@@ -58,19 +77,6 @@ const users = usersResult.data;
         border-radius: 16px;
         padding: clamp(1rem, 2.5vw, 1.5rem);
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-    }
-
-    .eyebrow {
-        margin: 0;
-        color: #2f76df;
-        font-size: 0.82rem;
-        font-weight: 700;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-    }
-
-    h1 {
-        margin: 0.1rem 0 0.45rem;
     }
 
     .user-list {
@@ -98,6 +104,10 @@ const users = usersResult.data;
     .muted {
         color: #6b7280;
         font-size: 0.88rem;
+    }
+
+    .empty-state {
+        margin-top: 1rem;
     }
 
     .badge {

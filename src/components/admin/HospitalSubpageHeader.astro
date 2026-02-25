@@ -1,0 +1,127 @@
+---
+type HospitalTab = "overview" | "users" | "invites";
+
+type Props = {
+    slug: string;
+    label?: string;
+    activeTab: HospitalTab;
+};
+
+const { slug, label = slug, activeTab } = Astro.props as Props;
+
+const tabs: Array<{ key: HospitalTab; href: string; label: string }> = [
+    { key: "overview", href: `/admin/hospitals/${slug}`, label: "Overview" },
+    { key: "users", href: `/admin/hospitals/${slug}/users`, label: "Users" },
+    { key: "invites", href: `/admin/hospitals/${slug}/invites`, label: "Invite Links" },
+];
+---
+
+<header class="hospital-header">
+    <p class="breadcrumbs">
+        <a href="/admin">Admin</a>
+        <span>/</span>
+        <a href="/admin/hospitals">Hospitals</a>
+        <span>/</span>
+        <span class="current">{label}</span>
+    </p>
+
+    <div class="title-row">
+        <h1>{label}</h1>
+        <p class="slug">slug: {slug}</p>
+    </div>
+
+    <nav class="tabs" aria-label="Hospital sections">
+        {
+            tabs.map((tab) => (
+                <a
+                    href={tab.href}
+                    class:list={["tab-link", { "is-active": activeTab === tab.key }]}
+                    aria-current={activeTab === tab.key ? "page" : undefined}
+                >
+                    {tab.label}
+                </a>
+            ))
+        }
+    </nav>
+</header>
+
+<style>
+    .hospital-header {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .breadcrumbs {
+        margin: 0;
+        font-size: 0.86rem;
+        color: #607089;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        align-items: center;
+    }
+
+    .breadcrumbs a {
+        color: #285792;
+        text-decoration: none;
+    }
+
+    .breadcrumbs a:hover {
+        text-decoration: underline;
+    }
+
+    .current {
+        color: #1f365b;
+        font-weight: 600;
+    }
+
+    .title-row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: baseline;
+        flex-wrap: wrap;
+    }
+
+    h1 {
+        margin: 0;
+    }
+
+    .slug {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    .tabs {
+        display: flex;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+    }
+
+    .tab-link {
+        text-decoration: none;
+        border: 1px solid #c5d6f2;
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        color: #1f365b;
+        background: #f7faff;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+            background-color 180ms ease,
+            border-color 180ms ease,
+            color 180ms ease;
+    }
+
+    .tab-link:hover {
+        background: #eef4ff;
+        border-color: #b8cdf0;
+    }
+
+    .tab-link.is-active {
+        background: #1f66d2;
+        border-color: #1f66d2;
+        color: #ffffff;
+    }
+</style>

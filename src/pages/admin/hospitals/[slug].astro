@@ -1,5 +1,6 @@
 ---
 import Layout from "../../../layouts/Layout.astro";
+import HospitalSubpageHeader from "../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../utils/admin-api";
 
 const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
@@ -142,19 +143,19 @@ if (adminInfo.role === "superadmin") {
 
 <Layout title={`Hospital ${hospital.name}`}>
     <section class="panel">
-        <p class="eyebrow">Hospital</p>
-        <h1>{hospital.name}</h1>
-        <p class="slug">slug: {hospital.slug}</p>
+        <HospitalSubpageHeader slug={hospital.slug} label={hospital.name} activeTab="overview" />
 
-        <div class="link-row">
-            <a href={`/admin/hospitals/${hospital.slug}/users`}>Users</a>
-            <a href={`/admin/hospitals/${hospital.slug}/invites`}>Invite Links</a>
-        </div>
+        {actionResult && <p class="message" role="status">{actionResult}</p>}
+        {actionError && (
+            <p class="message error" role="alert">
+                {actionError}
+            </p>
+        )}
 
         {
             adminInfo.role === "superadmin" && (
                 <>
-                    <h2>Current Representatives</h2>
+                    <h2 id="representatives">Current Representatives</h2>
                     {hospitalAdmins.length === 0 && <p class="subtle">No representatives assigned yet.</p>}
 
                     <ul class="admin-list">
@@ -166,7 +167,11 @@ if (adminInfo.role === "superadmin") {
                                         {admin.email && <span class="subtle">&lt;{admin.email}&gt;</span>}
                                         {admin.username && <span class="subtle">@{admin.username}</span>}
                                     </div>
-                                    <form method="post">
+                                    <form
+                                        method="post"
+                                        data-pending-label="Removing..."
+                                        data-confirm="Remove this representative from this hospital?"
+                                    >
                                         <input type="hidden" name="_action" value="remove" />
                                         <input type="hidden" name="user_clerk_id" value={admin.clerk_id} />
                                         <button type="submit" class="danger">Remove</button>
@@ -193,7 +198,7 @@ if (adminInfo.role === "superadmin") {
                                                 `Assigned to ${candidate.membership_hospital_slug || "another hospital"}`}
                                         </span>
                                     </div>
-                                    <form method="post">
+                                    <form method="post" data-pending-label="Assigning...">
                                         <input type="hidden" name="_action" value="assign" />
                                         <input type="hidden" name="user_clerk_id" value={candidate.clerk_id} />
                                         <button type="submit" disabled={!candidate.assignable}>
@@ -207,11 +212,37 @@ if (adminInfo.role === "superadmin") {
                 </>
             )
         }
-
-        {actionResult && <p class="message">{actionResult}</p>}
-        {actionError && <p class="message error">{actionError}</p>}
     </section>
 </Layout>
+
+<script is:inline>
+    (() => {
+        const actionForms = document.querySelectorAll("form[data-pending-label]");
+        for (const form of actionForms) {
+            form.addEventListener("submit", (event) => {
+                const confirmText = form.getAttribute("data-confirm");
+                if (confirmText && !window.confirm(confirmText)) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
+                const button =
+                    submitter?.tagName === "BUTTON"
+                        ? submitter
+                        : form.querySelector("button[type='submit']");
+                if (!button || button.disabled) {
+                    return;
+                }
+
+                const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
+                button.setAttribute("aria-busy", "true");
+                button.textContent = pendingLabel;
+                button.disabled = true;
+            });
+        }
+    })();
+</script>
 
 <style>
     .panel {
@@ -220,40 +251,6 @@ if (adminInfo.role === "superadmin") {
         border-radius: 16px;
         padding: clamp(1rem, 2.5vw, 1.5rem);
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-    }
-
-    .eyebrow {
-        margin: 0;
-        color: #2f76df;
-        font-size: 0.82rem;
-        font-weight: 700;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-    }
-
-    h1 {
-        margin: 0.1rem 0 0.25rem;
-    }
-
-    .slug {
-        margin: 0;
-        color: #6b7280;
-    }
-
-    .link-row {
-        margin-top: 0.9rem;
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-    }
-
-    .link-row a {
-        text-decoration: none;
-        border: 1px solid #c5d6f2;
-        border-radius: 999px;
-        padding: 0.35rem 0.75rem;
-        color: #1f365b;
-        background: #f7faff;
     }
 
     h2 {
