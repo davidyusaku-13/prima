@@ -36,7 +36,7 @@ type HospitalAdmin = {
 type HospitalSummary = {
     userCount: number;
     representativeCount: number | null;
-    activeInviteCount: number;
+    inviteCount: number;
 };
 
 const fallbackProbe: AdminProbe = {
@@ -114,7 +114,7 @@ const summaryEntries = await Promise.all(
             usersResult.unauthorized || invitesResult.unauthorized || Boolean(adminsResult.unauthorized);
 
         const now = Date.now();
-        const activeInviteCount = invitesResult.data.filter((invite) => {
+        const inviteCount = invitesResult.data.filter((invite) => {
             if (invite.consumed_at) {
                 return false;
             }
@@ -128,7 +128,7 @@ const summaryEntries = await Promise.all(
             summary: {
                 userCount: usersResult.data.length,
                 representativeCount: isSuperadmin ? (adminsResult.data?.length ?? 0) : null,
-                activeInviteCount,
+                inviteCount,
             } satisfies HospitalSummary,
         };
     }),
@@ -218,7 +218,7 @@ const shouldOpenCreateModal = Boolean(createError);
                                 <th scope="col">Status</th>
                                 <th scope="col">Representatives</th>
                                 <th scope="col">Users</th>
-                                <th scope="col">Active Invites</th>
+                                <th scope="col">Invites</th>
                                 <th scope="col">Actions</th>
                             </tr>
                         </thead>
@@ -228,7 +228,7 @@ const shouldOpenCreateModal = Boolean(createError);
                                     const summary = summaries.get(hospital.slug) ?? {
                                         userCount: 0,
                                         representativeCount: null,
-                                        activeInviteCount: 0,
+                                        inviteCount: 0,
                                     };
                                     const searchable = `${hospital.name} ${hospital.slug}`.toLowerCase();
                                     return (
@@ -255,7 +255,7 @@ const shouldOpenCreateModal = Boolean(createError);
                                                 {summary.representativeCount === null ? "-" : summary.representativeCount}
                                             </td>
                                             <td>{summary.userCount}</td>
-                                            <td>{summary.activeInviteCount}</td>
+                                            <td>{summary.inviteCount}</td>
                                             <td>
                                                 <div class="row-actions">
                                                     <a href={`/admin/hospitals/${hospital.slug}`}>Open</a>
@@ -277,7 +277,7 @@ const shouldOpenCreateModal = Boolean(createError);
                             const summary = summaries.get(hospital.slug) ?? {
                                 userCount: 0,
                                 representativeCount: null,
-                                activeInviteCount: 0,
+                                inviteCount: 0,
                             };
                             const searchable = `${hospital.name} ${hospital.slug}`.toLowerCase();
                             return (
@@ -306,8 +306,8 @@ const shouldOpenCreateModal = Boolean(createError);
                                             <dd>{summary.userCount}</dd>
                                         </div>
                                         <div>
-                                            <dt>Active Invites</dt>
-                                            <dd>{summary.activeInviteCount}</dd>
+                                            <dt>Invites</dt>
+                                            <dd>{summary.inviteCount}</dd>
                                         </div>
                                     </dl>
                                     <div class="row-actions">
