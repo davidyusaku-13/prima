@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
+import { resolveApiUrl } from "./api-url";
 
 type AdminRequestResult<T> = {
     unauthorized: boolean;
@@ -9,6 +9,8 @@ export type AdminStatusRequestResult<T> = {
     unauthorized: boolean;
     httpStatus: number;
     ok: boolean;
+    latencyMs: number;
+    transportError: string;
     data: T;
 };
 
@@ -18,6 +20,11 @@ type RequestOptions = {
     method?: RequestMethod;
     body?: string;
 };
+
+function measureLatencyMs(startedAtMs: number): number {
+    const elapsedMs = Date.now() - startedAtMs;
+    return elapsedMs > 0 ? elapsedMs : 0;
+}
 
 function buildAuthRequest(token: string, options: RequestOptions = {}): RequestInit {
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -31,12 +38,16 @@ function buildAuthRequest(token: string, options: RequestOptions = {}): RequestI
     };
 }
 
-export async function probeAdminAccess(token: string | null, path = "/admin"): Promise<boolean> {
+export async function probeAdminAccess(
+    token: string | null,
+    path = "/admin",
+    apiUrl?: string,
+): Promise<boolean> {
     if (!token) {
         return false;
     }
 
-    const response = await fetch(`${API_URL}${path}`, buildAuthRequest(token)).catch(() => null);
+    const response = await fetch(`${resolveApiUrl(apiUrl)}${path}`, buildAuthRequest(token)).catch(() => null);
     return Boolean(response?.ok);
 }
 
@@ -44,6 +55,7 @@ export async function fetchAdminJson<T>(
     token: string | null,
     path: string,
     fallback: T,
+    apiUrl?: string,
 ): Promise<AdminRequestResult<T>> {
     if (!token) {
         return {
@@ -52,7 +64,9 @@ export async function fetchAdminJson<T>(
         };
     }
 
-    const response = await fetch(`${API_URL}${path}`, buildAuthRequest(token, { method: "GET" })).catch(() => null);
+    const response = await fetch(`${resolveApiUrl(apiUrl)}${path}`, buildAuthRequest(token, { method: "GET" })).catch(
+        () => null,
+    );
 
     if (!response || response.status === 401 || response.status === 403) {
         return {
@@ -87,22 +101,31 @@ export async function fetchAdminJsonWithStatus<T>(
     token: string | null,
     path: string,
     fallback: T,
+    apiUrl?: string,
 ): Promise<AdminStatusRequestResult<T>> {
+    const requestStartedAtMs = Date.now();
+
     if (!token) {
         return {
             unauthorized: true,
             httpStatus: 401,
             ok: false,
+            latencyMs: measureLatencyMs(requestStartedAtMs),
+            transportError: "",
             data: fallback,
         };
     }
 
-    const response = await fetch(`${API_URL}${path}`, buildAuthRequest(token, { method: "GET" })).catch(() => null);
+    const response = await fetch(`${resolveApiUrl(apiUrl)}${path}`, buildAuthRequest(token, { method: "GET" })).catch(
+        () => null,
+    );
     if (!response) {
         return {
             unauthorized: false,
             httpStatus: 0,
             ok: false,
+            latencyMs: measureLatencyMs(requestStartedAtMs),
+            transportError: "Unable to reach API server.",
             data: fallback,
         };
     }
@@ -112,6 +135,8 @@ export async function fetchAdminJsonWithStatus<T>(
             unauthorized: true,
             httpStatus: response.status,
             ok: false,
+            latencyMs: measureLatencyMs(requestStartedAtMs),
+            transportError: "",
             data: fallback,
         };
     }
@@ -121,6 +146,8 @@ export async function fetchAdminJsonWithStatus<T>(
         unauthorized: false,
         httpStatus: response.status,
         ok: response.ok,
+        latencyMs: measureLatencyMs(requestStartedAtMs),
+        transportError: "",
         data,
     };
 }
@@ -130,6 +157,7 @@ export async function postAdminJson<T>(
     path: string,
     payload: unknown,
     fallback: T,
+    apiUrl?: string,
 ): Promise<AdminRequestResult<T>> {
     if (!token) {
         return {
@@ -139,7 +167,7 @@ export async function postAdminJson<T>(
     }
 
     const response = await fetch(
-        `${API_URL}${path}`,
+        `${resolveApiUrl(apiUrl)}${path}`,
         buildAuthRequest(token, {
             method: "POST",
             body: JSON.stringify(payload),

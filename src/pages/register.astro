@@ -2,9 +2,9 @@
 import Layout from "../layouts/Layout.astro";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/astro/components";
 
-const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
+const API_URL = Astro.locals.apiUrl;
 const inviteToken = String(Astro.url.searchParams.get("invite") ?? "").trim();
-const authToken = Astro.locals.authToken ?? null;
+const authToken = Astro.locals.authToken;
 
 let claimError = "";
 

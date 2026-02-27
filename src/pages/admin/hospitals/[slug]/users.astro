@@ -4,7 +4,8 @@ import AdminBadge from "../../../../components/admin/AdminBadge.astro";
 import HospitalSubpageHeader from "../../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../../utils/admin-api";
 
-const token = Astro.locals.authToken ?? null;
+const token = Astro.locals.authToken;
+const API_URL = Astro.locals.apiUrl;
 const slug = String(Astro.params.slug ?? "").trim();
 
 type Hospital = {
@@ -30,14 +31,19 @@ type HospitalUser = {
 const fallbackUsers: HospitalUser[] = [];
 const fallbackHospitals: Hospital[] = [];
 
-const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals, API_URL);
 if (hospitalsResult.unauthorized) {
     return Astro.redirect("/");
 }
 const hospital = hospitalsResult.data.find((entry) => entry.slug === slug);
 const hospitalLabel = hospital?.name ?? slug;
 
-const usersResult = await fetchAdminJson(token, `/admin/hospitals/${encodeURIComponent(slug)}/users`, fallbackUsers);
+const usersResult = await fetchAdminJson(
+    token,
+    `/admin/hospitals/${encodeURIComponent(slug)}/users`,
+    fallbackUsers,
+    API_URL,
+);
 if (usersResult.unauthorized) {
     return Astro.redirect("/");
 }

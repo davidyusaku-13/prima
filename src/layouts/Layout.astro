@@ -33,10 +33,12 @@ type AdminProbe = {
     hospital_id: number;
 };
 
-const adminProbe = await fetchAdminJson<AdminProbe>(Astro.locals.authToken ?? null, "/admin", {
+const authToken = Astro.locals.authToken;
+const API_URL = Astro.locals.apiUrl;
+const adminProbe = await fetchAdminJson<AdminProbe>(authToken, "/admin", {
     role: "",
     hospital_id: 0,
-});
+}, API_URL);
 const canAccessAdmin = !adminProbe.unauthorized && Boolean(adminProbe.data.role);
 const isSuperadmin = adminProbe.data.role === "superadmin";
 ---

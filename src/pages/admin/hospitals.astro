@@ -3,8 +3,8 @@ import Layout from "../../layouts/Layout.astro";
 import AdminBadge from "../../components/admin/AdminBadge.astro";
 import { fetchAdminJson } from "../../utils/admin-api";
 
-const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
-const token = Astro.locals.authToken ?? null;
+const API_URL = Astro.locals.apiUrl;
+const token = Astro.locals.authToken;
 
 type AdminProbe = {
     role: string;
@@ -87,13 +87,13 @@ if (Astro.request.method === "POST") {
     }
 }
 
-const probeResult = await fetchAdminJson(token, "/admin", fallbackProbe);
+const probeResult = await fetchAdminJson(token, "/admin", fallbackProbe, API_URL);
 if (probeResult.unauthorized) {
     return Astro.redirect("/");
 }
 const isSuperadmin = probeResult.data.role === "superadmin";
 
-const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals, API_URL);
 if (hospitalsResult.unauthorized) {
     return Astro.redirect("/");
 }
@@ -103,10 +103,10 @@ const summaryEntries = await Promise.all(
     hospitals.map(async (hospital) => {
         const encodedSlug = encodeURIComponent(hospital.slug);
         const [usersResult, invitesResult, adminsResult] = await Promise.all([
-            fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/users`, fallbackUsers),
-            fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/invites`, fallbackInvites),
+            fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/users`, fallbackUsers, API_URL),
+            fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/invites`, fallbackInvites, API_URL),
             isSuperadmin
-                ? fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/admins`, fallbackAdmins)
+                ? fetchAdminJson(token, `/admin/hospitals/${encodedSlug}/admins`, fallbackAdmins, API_URL)
                 : Promise.resolve({ unauthorized: false, data: null as HospitalAdmin[] | null }),
         ]);
 

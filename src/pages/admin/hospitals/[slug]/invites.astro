@@ -4,8 +4,8 @@ import AdminBadge from "../../../../components/admin/AdminBadge.astro";
 import HospitalSubpageHeader from "../../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../../utils/admin-api";
 
-const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
-const token = Astro.locals.authToken ?? null;
+const API_URL = Astro.locals.apiUrl;
+const token = Astro.locals.authToken;
 const slug = String(Astro.params.slug ?? "").trim();
 
 type Hospital = {
@@ -44,7 +44,7 @@ let createdInviteLink = "";
 let actionResult = "";
 let actionError = "";
 
-const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals, API_URL);
 if (hospitalsResult.unauthorized) {
     return Astro.redirect("/");
 }
@@ -150,6 +150,7 @@ const invitesResult = await fetchAdminJson(
     token,
     `/admin/hospitals/${encodeURIComponent(slug)}/invites`,
     fallbackInvites,
+    API_URL,
 );
 if (invitesResult.unauthorized) {
     return Astro.redirect("/");

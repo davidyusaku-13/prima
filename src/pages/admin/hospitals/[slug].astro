@@ -4,8 +4,8 @@ import AdminBadge from "../../../components/admin/AdminBadge.astro";
 import HospitalSubpageHeader from "../../../components/admin/HospitalSubpageHeader.astro";
 import { fetchAdminJson } from "../../../utils/admin-api";
 
-const API_URL = import.meta.env.API_URL ?? "http://localhost:8080";
-const token = Astro.locals.authToken ?? null;
+const API_URL = Astro.locals.apiUrl;
+const token = Astro.locals.authToken;
 const slug = String(Astro.params.slug ?? "").trim();
 
 type AdminProbe = {
@@ -128,14 +128,14 @@ if (Astro.request.method === "POST") {
     }
 }
 
-const probeResult = await fetchAdminJson(token, "/admin", fallbackProbe);
+const probeResult = await fetchAdminJson(token, "/admin", fallbackProbe, API_URL);
 if (probeResult.unauthorized) {
     return Astro.redirect("/");
 }
 const adminInfo = probeResult.data;
 const isSuperadmin = adminInfo.role === "superadmin";
 
-const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals);
+const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals, API_URL);
 if (hospitalsResult.unauthorized) {
     return Astro.redirect("/");
 }
@@ -144,7 +144,12 @@ if (!hospital) {
     return Astro.redirect("/admin/hospitals");
 }
 
-const usersResult = await fetchAdminJson(token, `/admin/hospitals/${encodeURIComponent(slug)}/users`, fallbackUsers);
+const usersResult = await fetchAdminJson(
+    token,
+    `/admin/hospitals/${encodeURIComponent(slug)}/users`,
+    fallbackUsers,
+    API_URL,
+);
 if (usersResult.unauthorized) {
     return Astro.redirect("/");
 }
@@ -153,6 +158,7 @@ const invitesResult = await fetchAdminJson(
     token,
     `/admin/hospitals/${encodeURIComponent(slug)}/invites`,
     fallbackInvites,
+    API_URL,
 );
 if (invitesResult.unauthorized) {
     return Astro.redirect("/");
@@ -165,6 +171,7 @@ if (isSuperadmin) {
         token,
         `/admin/hospitals/${encodeURIComponent(slug)}/admins`,
         fallbackAdmins,
+        API_URL,
     );
     if (adminsResult.unauthorized) {
         return Astro.redirect("/");
@@ -175,6 +182,7 @@ if (isSuperadmin) {
         token,
         `/admin/hospitals/${encodeURIComponent(slug)}/admin-candidates`,
         fallbackCandidates,
+        API_URL,
     );
     if (candidatesResult.unauthorized) {
         return Astro.redirect("/");

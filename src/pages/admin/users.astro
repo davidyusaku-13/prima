@@ -3,6 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { fetchAdminJson } from "../../utils/admin-api";
 
 const token = Astro.locals.authToken;
+const API_URL = Astro.locals.apiUrl;
 
 const fallbackUsers: {
     clerk_id: string;
@@ -16,7 +17,7 @@ const fallbackUsers: {
     created_at: string;
 }[] = [];
 
-const usersResult = await fetchAdminJson(token, "/admin/users", fallbackUsers);
+const usersResult = await fetchAdminJson(token, "/admin/users", fallbackUsers, API_URL);
 
 if (usersResult.unauthorized) {
     return Astro.redirect("/");

@@ -3,6 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { fetchAdminJsonWithStatus } from "../../utils/admin-api";
 
 const token = Astro.locals.authToken;
+const API_URL = Astro.locals.apiUrl;
 
 type HealthComponentSnapshot = {
     name: string;
@@ -34,7 +35,7 @@ const fallbackHealth: AdminHealthPayload = {
     version: "",
     components: [],
 };
-const healthResult = await fetchAdminJsonWithStatus(token, "/admin/health", fallbackHealth);
+const healthResult = await fetchAdminJsonWithStatus(token, "/admin/health", fallbackHealth, API_URL);
 
 if (healthResult.unauthorized) {
     return Astro.redirect("/");
@@ -105,6 +106,25 @@ const statusSummary =
     (health.status.toLowerCase() === "ok"
         ? "All monitored components are healthy."
         : "One or more components are degraded.");
+
+const backendCheckedAt = health.checked_at?.trim() ? health.checked_at : new Date().toISOString();
+const backendComponentStatus =
+    healthResult.httpStatus === 0 ? "down" : healthResult.ok ? "up" : "degraded";
+const backendComponentError =
+    healthResult.transportError ||
+    (!healthResult.ok ? `Health endpoint returned HTTP ${healthResult.httpStatus}.` : "");
+const backendComponent: HealthComponentSnapshot = {
+    name: "backend",
+    status: backendComponentStatus,
+    latency_ms: healthResult.latencyMs,
+    checked_at: backendCheckedAt,
+    last_success_at: healthResult.ok ? backendCheckedAt : "",
+    error: backendComponentError,
+};
+const componentRows = [
+    backendComponent,
+    ...health.components.filter((component) => component.name.trim().toLowerCase() !== "backend"),
+];
 ---
 
 <Layout title="Admin Health">
@@ -169,7 +189,7 @@ const statusSummary =
             </div>
 
             {
-                health.components.length === 0 ? (
+                componentRows.length === 0 ? (
                     <p class="empty-state" role="status">No component diagnostics are currently available.</p>
                 ) : (
                     <div class="table-scroll">
@@ -186,7 +206,7 @@ const statusSummary =
                             </thead>
                             <tbody>
                                 {
-                                    health.components.map((component) => {
+                                    componentRows.map((component) => {
                                         const componentStatus = getStatusViewModel(component.status);
                                         return (
                                             <tr>
