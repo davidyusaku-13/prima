@@ -41,6 +41,7 @@ const adminProbe = await fetchAdminJson<AdminProbe>(authToken, "/admin", {
 }, API_URL);
 const canAccessAdmin = !adminProbe.unauthorized && Boolean(adminProbe.data.role);
 const isSuperadmin = adminProbe.data.role === "superadmin";
+const hospitalsNavLabel = isSuperadmin ? "Hospitals" : "My Hospital";
 ---
 
 <!doctype html>
@@ -159,7 +160,7 @@ const isSuperadmin = adminProbe.data.role === "superadmin";
                                         aria-current={pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") ? "page" : undefined}
                                     >
                                         <i class="fa-solid fa-fw fa-hospital sub-nav-icon" aria-hidden="true"></i>
-                                        <span>Hospitals</span>
+                                        <span>{hospitalsNavLabel}</span>
                                     </a>
                                     {
                                         isSuperadmin && (
@@ -240,14 +241,14 @@ const isSuperadmin = adminProbe.data.role === "superadmin";
                                                 { "is-active": pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") },
                                             ]}
                                             aria-current={pathname === "/admin/hospitals" || pathname.startsWith("/admin/hospitals/") ? "page" : undefined}
-                                            title="Hospitals"
-                                            aria-label="Hospitals"
+                                            title={hospitalsNavLabel}
+                                            aria-label={hospitalsNavLabel}
                                         >
                                             <i
                                                 class="fa-solid fa-fw fa-hospital sub-nav-icon"
                                                 aria-hidden="true"
                                             ></i>
-                                            <span class="sub-nav-text">Hospitals</span>
+                                            <span class="sub-nav-text">{hospitalsNavLabel}</span>
                                         </a>
                                         {
                                             isSuperadmin && (

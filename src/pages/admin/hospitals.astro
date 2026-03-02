@@ -92,6 +92,11 @@ if (probeResult.unauthorized) {
     return Astro.redirect("/");
 }
 const isSuperadmin = probeResult.data.role === "superadmin";
+const roleLabel = isSuperadmin ? "Superadmin" : "Hospital Admin";
+const pageTitle = isSuperadmin ? "Hospitals" : "My Hospital";
+const pageSubtitle = isSuperadmin
+    ? "Operations workspace for tenants, users, representatives, and invites."
+    : "Workspace for your assigned hospital users and invite links.";
 
 const hospitalsResult = await fetchAdminJson(token, "/admin/hospitals", fallbackHospitals, API_URL);
 if (hospitalsResult.unauthorized) {
@@ -139,6 +144,14 @@ if (summaryEntries.some((entry) => entry.unauthorized)) {
 }
 
 const summaries = new Map(summaryEntries.map((entry) => [entry.slug, entry.summary]));
+const primaryHospital = hospitals[0] ?? null;
+const primaryHospitalSummary = primaryHospital
+    ? (summaries.get(primaryHospital.slug) ?? {
+          userCount: 0,
+          representativeCount: null,
+          inviteCount: 0,
+      })
+    : null;
 
 const totalHospitals = hospitals.length;
 const activeHospitals = hospitals.filter((hospital) => hospital.is_active).length;
@@ -152,49 +165,60 @@ const shouldOpenCreateModal = Boolean(createError);
         <header class="workspace-header">
             <div>
                 <p class="eyebrow">Admin</p>
-                <h1>Hospitals</h1>
-                <p class="subtle">Operations workspace for tenants, users, representatives, and invites.</p>
+                <h1>{pageTitle}</h1>
+                <p class="subtle">{pageSubtitle}</p>
             </div>
-            <button type="button" class="primary-action" id="open-create-modal">
-                New Hospital
-            </button>
+            <div class="header-context">
+                <AdminBadge label={roleLabel} tone="info" showDot={false} />
+                {isSuperadmin && (
+                    <button type="button" class="primary-action" id="open-create-modal">
+                        New Hospital
+                    </button>
+                )}
+            </div>
         </header>
 
-        <form class="command-bar" role="search" onsubmit="return false;">
-            <label class="field">
-                <span>Search</span>
-                <input
-                    id="hospital-search"
-                    type="search"
-                    autocomplete="off"
-                    placeholder="Search by name or slug"
-                    aria-label="Search hospitals"
-                />
-            </label>
-            <label class="field field-status">
-                <span>Status</span>
-                <select id="hospital-status-filter" aria-label="Filter hospitals by status">
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
-            </label>
-        </form>
+        {
+            isSuperadmin && (
+                <>
+                    <form class="command-bar" role="search" onsubmit="return false;">
+                        <label class="field">
+                            <span>Search</span>
+                            <input
+                                id="hospital-search"
+                                type="search"
+                                autocomplete="off"
+                                placeholder="Search by name or slug"
+                                aria-label="Search hospitals"
+                            />
+                        </label>
+                        <label class="field field-status">
+                            <span>Status</span>
+                            <select id="hospital-status-filter" aria-label="Filter hospitals by status">
+                                <option value="all">All</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </label>
+                    </form>
 
-        <ul class="kpi-strip" aria-label="Hospital totals">
-            <li>
-                <span class="kpi-label">Total Hospitals</span>
-                <strong>{totalHospitals}</strong>
-            </li>
-            <li>
-                <span class="kpi-label">Active</span>
-                <strong>{activeHospitals}</strong>
-            </li>
-            <li>
-                <span class="kpi-label">Inactive</span>
-                <strong>{inactiveHospitals}</strong>
-            </li>
-        </ul>
+                    <ul class="kpi-strip" aria-label="Hospital totals">
+                        <li>
+                            <span class="kpi-label">Total Hospitals</span>
+                            <strong>{totalHospitals}</strong>
+                        </li>
+                        <li>
+                            <span class="kpi-label">Active</span>
+                            <strong>{activeHospitals}</strong>
+                        </li>
+                        <li>
+                            <span class="kpi-label">Inactive</span>
+                            <strong>{inactiveHospitals}</strong>
+                        </li>
+                    </ul>
+                </>
+            )
+        }
 
         {createError && (
             <p class="error" role="alert">
@@ -202,8 +226,47 @@ const shouldOpenCreateModal = Boolean(createError);
             </p>
         )}
 
-        {hospitals.length === 0 ? (
+        {!isSuperadmin && !primaryHospital ? (
+            <p class="subtle empty-state">
+                No assigned hospital found for this account. Contact a superadmin to verify assignment.
+            </p>
+        ) : hospitals.length === 0 ? (
             <p class="subtle empty-state">No hospitals found yet. Create the first one to get started.</p>
+        ) : !isSuperadmin && primaryHospital && primaryHospitalSummary ? (
+            <section class="my-hospital-panel" aria-label="My hospital workspace">
+                <div class="card-head">
+                    <div class="hospital-cell">
+                        <a href={`/admin/hospitals/${primaryHospital.slug}`} class="hospital-link">
+                            <strong>{primaryHospital.name}</strong>
+                        </a>
+                        <span class="slug">/{primaryHospital.slug}</span>
+                    </div>
+                    <AdminBadge
+                        label={primaryHospital.is_active ? "Active" : "Inactive"}
+                        tone={primaryHospital.is_active ? "success" : "danger"}
+                    />
+                </div>
+                <p class="subtle">You can manage users and invite links for your assigned hospital.</p>
+                <dl class="card-metrics">
+                    <div>
+                        <dt>Representatives</dt>
+                        <dd class="restricted">Superadmin only</dd>
+                    </div>
+                    <div>
+                        <dt>Users</dt>
+                        <dd>{primaryHospitalSummary.userCount}</dd>
+                    </div>
+                    <div>
+                        <dt>Invites</dt>
+                        <dd>{primaryHospitalSummary.inviteCount}</dd>
+                    </div>
+                </dl>
+                <div class="row-actions">
+                    <a href={`/admin/hospitals/${primaryHospital.slug}`}>Open Overview</a>
+                    <a href={`/admin/hospitals/${primaryHospital.slug}/users`}>Users</a>
+                    <a href={`/admin/hospitals/${primaryHospital.slug}/invites`}>Invite Links</a>
+                </div>
+            </section>
         ) : (
             <>
                 <p id="hospitals-result-count" class="result-count" role="status" aria-live="polite">
@@ -252,7 +315,9 @@ const shouldOpenCreateModal = Boolean(createError);
                                                 />
                                             </td>
                                             <td>
-                                                {summary.representativeCount === null ? "-" : summary.representativeCount}
+                                                {summary.representativeCount === null
+                                                    ? "Superadmin only"
+                                                    : summary.representativeCount}
                                             </td>
                                             <td>{summary.userCount}</td>
                                             <td>{summary.inviteCount}</td>
@@ -299,7 +364,11 @@ const shouldOpenCreateModal = Boolean(createError);
                                     <dl class="card-metrics">
                                         <div>
                                             <dt>Representatives</dt>
-                                            <dd>{summary.representativeCount === null ? "-" : summary.representativeCount}</dd>
+                                            <dd>
+                                                {summary.representativeCount === null
+                                                    ? "Superadmin only"
+                                                    : summary.representativeCount}
+                                            </dd>
                                         </div>
                                         <div>
                                             <dt>Users</dt>
@@ -324,31 +393,38 @@ const shouldOpenCreateModal = Boolean(createError);
         )}
     </section>
 
-    <div id="create-modal-overlay" class="create-modal-overlay" hidden={!shouldOpenCreateModal}>
-        <div class="create-modal" role="dialog" aria-modal="true" aria-labelledby="create-hospital-title">
-            <div class="create-modal-header">
-                <h2 id="create-hospital-title">Create Hospital</h2>
-                <button type="button" class="icon-close" id="close-create-modal" aria-label="Close create hospital form">
-                    ×
-                </button>
-            </div>
-            <p class="subtle">Create a new tenant hospital and continue to its management workspace.</p>
-            <form class="create-form" method="post" data-pending-label="Creating...">
-                <label>
-                    Hospital name
-                    <input id="create-hospital-name" name="name" type="text" required />
-                </label>
-                <label>
-                    Slug (optional)
-                    <input name="slug" type="text" placeholder="auto-generated-from-name" />
-                </label>
-                <div class="create-actions">
-                    <button type="button" class="secondary-action" id="cancel-create-modal">Cancel</button>
-                    <button type="submit" class="primary-action">Create Hospital</button>
+    {isSuperadmin && (
+        <div id="create-modal-overlay" class="create-modal-overlay" hidden={!shouldOpenCreateModal}>
+            <div class="create-modal" role="dialog" aria-modal="true" aria-labelledby="create-hospital-title">
+                <div class="create-modal-header">
+                    <h2 id="create-hospital-title">Create Hospital</h2>
+                    <button
+                        type="button"
+                        class="icon-close"
+                        id="close-create-modal"
+                        aria-label="Close create hospital form"
+                    >
+                        ×
+                    </button>
                 </div>
-            </form>
+                <p class="subtle">Create a new tenant hospital and continue to its management workspace.</p>
+                <form class="create-form" method="post" data-pending-label="Creating...">
+                    <label>
+                        Hospital name
+                        <input id="create-hospital-name" name="name" type="text" required />
+                    </label>
+                    <label>
+                        Slug (optional)
+                        <input name="slug" type="text" placeholder="auto-generated-from-name" />
+                    </label>
+                    <div class="create-actions">
+                        <button type="button" class="secondary-action" id="cancel-create-modal">Cancel</button>
+                        <button type="submit" class="primary-action">Create Hospital</button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
+    )}
 </Layout>
 
 <script is:inline>
@@ -473,6 +549,14 @@ const shouldOpenCreateModal = Boolean(createError);
         align-items: end;
         gap: 0.8rem;
         flex-wrap: wrap;
+    }
+
+    .header-context {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
 
     .eyebrow {
@@ -662,6 +746,15 @@ const shouldOpenCreateModal = Boolean(createError);
         background: #ffffff;
     }
 
+    .my-hospital-panel {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        padding: 0.8rem;
+        display: grid;
+        gap: 0.6rem;
+        background: #ffffff;
+    }
+
     .card-head {
         display: flex;
         justify-content: space-between;
@@ -695,6 +788,12 @@ const shouldOpenCreateModal = Boolean(createError);
         margin: 0.25rem 0 0;
         font-weight: 700;
         color: #1f365b;
+    }
+
+    .restricted {
+        font-size: 0.78rem;
+        color: #516178;
+        font-weight: 600;
     }
 
     .empty-state {
