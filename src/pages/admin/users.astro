@@ -1,52 +1,938 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { fetchAdminJson } from "../../utils/admin-api";
+import { fetchAdminJsonWithStatus } from "../../utils/admin-api";
 
 const token = Astro.locals.authToken;
 const API_URL = Astro.locals.apiUrl;
 
-const fallbackUsers: {
+type HospitalOption = {
+    id: number;
+    name: string;
+    slug: string;
+    is_active: boolean;
+};
+
+type UsersOverview = {
+    total_users: number;
+    active_users: number;
+    inactive_users: number;
+    unassigned_users: number;
+    admin_role_mismatch_users: number;
+    inactive_with_membership_users: number;
+    assigned_inactive_hospital_users: number;
+    never_logged_in_users: number;
+    hospitals: HospitalOption[];
+};
+
+type UsersSearchItem = {
     clerk_id: string;
     name: string;
-    first_name: string;
-    last_name: string;
     email: string;
     username: string;
+    first_name: string;
+    last_name: string;
     role: string;
     is_active: boolean;
     created_at: string;
-}[] = [];
+    updated_at: string;
+    last_login_at: string;
+    membership_hospital_id: number;
+    membership_hospital_slug: string;
+    membership_hospital_name: string;
+    membership_hospital_active: boolean;
+    membership_role: string;
+    anomalies: string[];
+};
 
-const usersResult = await fetchAdminJson(token, "/admin/users", fallbackUsers, API_URL);
+type UsersSearchResponse = {
+    items: UsersSearchItem[];
+    total: number;
+    limit: number;
+    offset: number;
+};
 
-if (usersResult.unauthorized) {
-    return Astro.redirect("/");
+type UserActionHistoryItem = {
+    id: number;
+    actor_clerk_id: string;
+    action_type: string;
+    reason: string;
+    metadata: Record<string, unknown>;
+    created_at: string;
+};
+
+type UserDetailResponse = {
+    user: UsersSearchItem;
+    recent_actions: UserActionHistoryItem[];
+};
+
+const fallbackOverview: UsersOverview = {
+    total_users: 0,
+    active_users: 0,
+    inactive_users: 0,
+    unassigned_users: 0,
+    admin_role_mismatch_users: 0,
+    inactive_with_membership_users: 0,
+    assigned_inactive_hospital_users: 0,
+    never_logged_in_users: 0,
+    hospitals: [],
+};
+
+const fallbackSearch: UsersSearchResponse = {
+    items: [],
+    total: 0,
+    limit: 50,
+    offset: 0,
+};
+
+const fallbackDetail: UserDetailResponse = {
+    user: {
+        clerk_id: "",
+        name: "",
+        email: "",
+        username: "",
+        first_name: "",
+        last_name: "",
+        role: "",
+        is_active: false,
+        created_at: "",
+        updated_at: "",
+        last_login_at: "",
+        membership_hospital_id: 0,
+        membership_hospital_slug: "",
+        membership_hospital_name: "",
+        membership_hospital_active: false,
+        membership_role: "",
+        anomalies: [],
+    },
+    recent_actions: [],
+};
+
+const fallbackMutation: { ok: boolean; error: string } = { ok: false, error: "" };
+
+const flashResult = String(Astro.url.searchParams.get("flash") ?? "").trim();
+const flashError = String(Astro.url.searchParams.get("flash_error") ?? "").trim();
+
+let actionResult = flashResult;
+let actionError = flashError;
+
+function buildFlashRedirect(result: string, error: string): string {
+    const nextURL = new URL(Astro.url.toString());
+    if (result) {
+        nextURL.searchParams.set("flash", result);
+    } else {
+        nextURL.searchParams.delete("flash");
+    }
+
+    if (error) {
+        nextURL.searchParams.set("flash_error", error);
+    } else {
+        nextURL.searchParams.delete("flash_error");
+    }
+
+    return `${nextURL.pathname}?${nextURL.searchParams.toString()}`;
 }
 
-const users = usersResult.data;
+async function postAdminAction(path: string, payload: unknown): Promise<{ ok: boolean; error: string }> {
+    if (!token) {
+        return { ok: false, error: "Authentication is required." };
+    }
+
+    const response = await fetch(`${API_URL}${path}`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    }).catch(() => null);
+
+    if (!response) {
+        return { ok: false, error: "Request failed. Please try again." };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        return { ok: false, error: "unauthorized" };
+    }
+
+    if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        return {
+            ok: false,
+            error: body?.error ?? "Action failed.",
+        };
+    }
+
+    return { ok: true, error: "" };
+}
+
+if (Astro.request.method === "POST") {
+    if (!token) {
+        return Astro.redirect("/");
+    }
+
+    const formData = await Astro.request.formData();
+    const action = String(formData.get("_action") ?? "").trim();
+    const targetClerkID = String(formData.get("target_clerk_id") ?? "").trim();
+    const reason = String(formData.get("reason") ?? "").trim();
+
+    let result = fallbackMutation;
+    let errorMessage = "";
+
+    if (!action) {
+        actionError = "Action is required.";
+    } else {
+        switch (action) {
+            case "reassign_hospital": {
+                const hospitalSlug = String(formData.get("hospital_slug") ?? "").trim();
+                const membershipRole = String(formData.get("membership_role") ?? "user").trim();
+                if (!targetClerkID || !hospitalSlug || !reason) {
+                    actionError = "User, hospital, and reason are required.";
+                    break;
+                }
+                result = await postAdminAction(`/admin/users/${encodeURIComponent(targetClerkID)}/reassign-hospital`, {
+                    hospital_slug: hospitalSlug,
+                    membership_role: membershipRole,
+                    reason,
+                });
+                if (result.ok) {
+                    actionResult = "Hospital reassignment completed.";
+                }
+                break;
+            }
+            case "set_membership_role": {
+                const membershipRole = String(formData.get("membership_role") ?? "user").trim();
+                if (!targetClerkID || !reason) {
+                    actionError = "User and reason are required.";
+                    break;
+                }
+                result = await postAdminAction(
+                    `/admin/users/${encodeURIComponent(targetClerkID)}/set-membership-role`,
+                    {
+                        membership_role: membershipRole,
+                        reason,
+                    },
+                );
+                if (result.ok) {
+                    actionResult = "Membership role updated.";
+                }
+                break;
+            }
+            case "detach_membership": {
+                if (!targetClerkID || !reason) {
+                    actionError = "User and reason are required.";
+                    break;
+                }
+                result = await postAdminAction(`/admin/users/${encodeURIComponent(targetClerkID)}/detach-membership`, {
+                    reason,
+                });
+                if (result.ok) {
+                    actionResult = "Membership detached and state reconciled.";
+                }
+                break;
+            }
+            case "set_active": {
+                const desiredActive = String(formData.get("is_active") ?? "false") === "true";
+                if (!targetClerkID || !reason) {
+                    actionError = "User and reason are required.";
+                    break;
+                }
+                result = await postAdminAction(`/admin/users/${encodeURIComponent(targetClerkID)}/set-active`, {
+                    is_active: desiredActive,
+                    reason,
+                });
+                if (result.ok) {
+                    actionResult = desiredActive ? "User activated." : "User deactivated.";
+                }
+                break;
+            }
+            case "recompute_state": {
+                if (!targetClerkID) {
+                    actionError = "User is required.";
+                    break;
+                }
+                result = await postAdminAction(`/admin/users/${encodeURIComponent(targetClerkID)}/recompute-state`, {
+                    reason: reason || "state recompute",
+                });
+                if (result.ok) {
+                    actionResult = "State recompute completed.";
+                }
+                break;
+            }
+            case "bulk_set_active": {
+                const desiredActive = String(formData.get("is_active") ?? "false") === "true";
+                const clerkIDs = formData
+                    .getAll("bulk_clerk_id")
+                    .map((value) => String(value).trim())
+                    .filter((value) => value.length > 0);
+                if (clerkIDs.length === 0 || !reason) {
+                    actionError = "Select at least one user and provide a reason.";
+                    break;
+                }
+                const bulkResponse = await fetch(`${API_URL}/admin/users/bulk/set-active`, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        clerk_ids: clerkIDs,
+                        is_active: desiredActive,
+                        reason,
+                    }),
+                }).catch(() => null);
+
+                if (!bulkResponse) {
+                    actionError = "Request failed. Please try again.";
+                    break;
+                }
+                if (bulkResponse.status === 401 || bulkResponse.status === 403) {
+                    return Astro.redirect("/");
+                }
+                if (!bulkResponse.ok) {
+                    const body = (await bulkResponse.json().catch(() => null)) as { error?: string } | null;
+                    actionError = body?.error ?? "Bulk action failed.";
+                    break;
+                }
+
+                const body = (await bulkResponse.json().catch(() => null)) as {
+                    results?: { ok: boolean; error?: string }[];
+                } | null;
+                const failedCount = (body?.results ?? []).filter((item) => !item.ok).length;
+                if (failedCount === 0) {
+                    actionResult = desiredActive
+                        ? `Activated ${clerkIDs.length} selected users.`
+                        : `Deactivated ${clerkIDs.length} selected users.`;
+                } else {
+                    actionError = `${failedCount} of ${clerkIDs.length} updates failed. Check current user state and try again.`;
+                }
+                break;
+            }
+            default:
+                actionError = "Unknown action.";
+        }
+
+        if (result.error === "unauthorized") {
+            return Astro.redirect("/");
+        }
+        if (!result.ok && !actionError && result.error) {
+            errorMessage = result.error;
+        }
+    }
+
+    if (!actionError && errorMessage) {
+        actionError = errorMessage;
+    }
+
+    return Astro.redirect(buildFlashRedirect(actionResult, actionError));
+}
+
+const q = String(Astro.url.searchParams.get("q") ?? "").trim();
+const role = String(Astro.url.searchParams.get("role") ?? "").trim();
+const isActiveFilter = String(Astro.url.searchParams.get("is_active") ?? "").trim();
+const hospitalSlug = String(Astro.url.searchParams.get("hospital_slug") ?? "").trim();
+const membershipRole = String(Astro.url.searchParams.get("membership_role") ?? "").trim();
+const anomaly = String(Astro.url.searchParams.get("anomaly") ?? "").trim();
+const lastLoginBucket = String(Astro.url.searchParams.get("last_login_bucket") ?? "").trim();
+const selectedClerkID = String(Astro.url.searchParams.get("selected") ?? "").trim();
+const limitRaw = Number.parseInt(String(Astro.url.searchParams.get("limit") ?? "50"), 10);
+const offsetRaw = Number.parseInt(String(Astro.url.searchParams.get("offset") ?? "0"), 10);
+const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
+const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
+
+const overviewResult = await fetchAdminJsonWithStatus(token, "/admin/users/overview", fallbackOverview, API_URL);
+if (overviewResult.unauthorized) {
+    return Astro.redirect("/");
+}
+if (!overviewResult.ok && !actionError) {
+    actionError = overviewResult.transportError || "Unable to load user overview.";
+}
+
+const searchParams = new URLSearchParams();
+searchParams.set("limit", String(limit));
+searchParams.set("offset", String(offset));
+if (q) searchParams.set("q", q);
+if (role) searchParams.set("role", role);
+if (isActiveFilter) searchParams.set("is_active", isActiveFilter);
+if (hospitalSlug) searchParams.set("hospital_slug", hospitalSlug);
+if (membershipRole) searchParams.set("membership_role", membershipRole);
+if (anomaly) searchParams.set("anomaly", anomaly);
+if (lastLoginBucket) searchParams.set("last_login_bucket", lastLoginBucket);
+
+const searchResult = await fetchAdminJsonWithStatus(
+    token,
+    `/admin/users/search?${searchParams.toString()}`,
+    fallbackSearch,
+    API_URL,
+);
+if (searchResult.unauthorized) {
+    return Astro.redirect("/");
+}
+if (!searchResult.ok && !actionError) {
+    actionError = searchResult.transportError || "Unable to load user search results.";
+}
+
+const overview = overviewResult.data;
+const users = searchResult.data.items ?? [];
+const totalUsers = searchResult.data.total ?? 0;
+const hasPreviousPage = offset > 0;
+const hasNextPage = offset + users.length < totalUsers;
+
+function usersPageHref(overrides: Record<string, string>): string {
+    const params = new URLSearchParams();
+    const currentEntries: Record<string, string> = {
+        q,
+        role,
+        is_active: isActiveFilter,
+        hospital_slug: hospitalSlug,
+        membership_role: membershipRole,
+        anomaly,
+        last_login_bucket: lastLoginBucket,
+        limit: String(limit),
+        offset: String(offset),
+        selected: selectedID,
+    };
+
+    for (const [key, value] of Object.entries(currentEntries)) {
+        if (value) {
+            params.set(key, value);
+        }
+    }
+
+    for (const [key, value] of Object.entries(overrides)) {
+        if (value) {
+            params.set(key, value);
+        } else {
+            params.delete(key);
+        }
+    }
+
+    return `/admin/users?${params.toString()}`;
+}
+
+const selectedFallback = users[0]?.clerk_id ?? "";
+const selectedIDFromQuery = users.some((user) => user.clerk_id === selectedClerkID) ? selectedClerkID : "";
+const selectedID = selectedIDFromQuery || selectedFallback;
+
+let selectedUser = fallbackDetail.user;
+let selectedActions = fallbackDetail.recent_actions;
+if (selectedID) {
+    const detailResult = await fetchAdminJsonWithStatus(
+        token,
+        `/admin/users/${encodeURIComponent(selectedID)}`,
+        fallbackDetail,
+        API_URL,
+    );
+    if (detailResult.unauthorized) {
+        return Astro.redirect("/");
+    }
+    if (!detailResult.ok && !actionError) {
+        actionError = detailResult.transportError || "Unable to load selected user details.";
+    }
+    selectedUser = detailResult.data.user;
+    selectedActions = detailResult.data.recent_actions ?? [];
+}
+
+const activeHospitals = overview.hospitals.filter((hospital) => hospital.is_active);
+
+const metricCards = [
+    { label: "Total", value: overview.total_users },
+    { label: "Active", value: overview.active_users },
+    { label: "Inactive", value: overview.inactive_users },
+    { label: "Unassigned", value: overview.unassigned_users },
+    { label: "Admin Drift", value: overview.admin_role_mismatch_users },
+    { label: "Integrity Alerts", value: overview.inactive_with_membership_users + overview.assigned_inactive_hospital_users },
+];
+
+const anomalyOptions = [
+    { value: "", label: "All anomalies" },
+    { value: "no_membership", label: "No membership" },
+    { value: "admin_role_mismatch", label: "Admin role mismatch" },
+    { value: "inactive_with_membership", label: "Inactive with membership" },
+    { value: "assigned_inactive_hospital", label: "Assigned to inactive hospital" },
+    { value: "never_logged_in", label: "Never logged in" },
+];
+
+const roleOptions = [
+    { value: "", label: "All roles" },
+    { value: "superadmin", label: "Superadmin" },
+    { value: "admin", label: "Admin" },
+    { value: "user", label: "User" },
+];
+
+const activeOptions = [
+    { value: "", label: "All states" },
+    { value: "active", label: "Active" },
+    { value: "inactive", label: "Inactive" },
+];
+
+const membershipRoleOptions = [
+    { value: "", label: "All membership roles" },
+    { value: "admin", label: "Admin" },
+    { value: "user", label: "User" },
+];
+
+const loginBuckets = [
+    { value: "", label: "Any login activity" },
+    { value: "never", label: "Never logged in" },
+    { value: "recent_30d", label: "Logged in within 30 days" },
+    { value: "gt_30d", label: "No login > 30 days" },
+    { value: "gt_90d", label: "No login > 90 days" },
+    { value: "gt_180d", label: "No login > 180 days" },
+];
+
+const shownFrom = totalUsers === 0 ? 0 : offset + 1;
+const shownTo = totalUsers === 0 ? 0 : offset + users.length;
 ---
 
-<Layout title="Admin Users">
-    <section class="panel">
-        <p class="eyebrow">Admin</p>
-        <h1>Users</h1>
+<Layout title="Admin Users Control Tower">
+    <section class="panel workspace">
+        <header class="header-block">
+            <p class="eyebrow">Admin</p>
+            <h1>Users Control Tower</h1>
+            <p class="subtitle">Global user lifecycle, tenant reassignment, and integrity operations for superadmins.</p>
+        </header>
 
-        <ul class="user-list">
+        {actionResult && (
+            <p class="message" role="status">
+                {actionResult}
+            </p>
+        )}
+        {actionError && (
+            <p class="message error" role="alert">
+                {actionError}
+            </p>
+        )}
+
+        <section class="metrics-grid" aria-label="User metrics">
             {
-                users.map((u) => (
-                        <li>
-                            <span class="user-name">{u.name}</span>
-                            {u.username ? <span class="user-username"> @{u.username}</span> : ""}
-                            {u.email ? <span class="user-email"> &lt;{u.email}&gt;</span> : ""}
-                            <span class={`user-role role-${u.role}`}>{u.role}</span>
-                            {!u.is_active && <span class="user-inactive">inactive</span>}
-                        </li>
-                    ),
-                )
+                metricCards.map((card) => (
+                    <article class="metric-card">
+                        <span>{card.label}</span>
+                        <strong>{card.value}</strong>
+                    </article>
+                ))
             }
-        </ul>
+        </section>
+
+        <section class="panel-inset" aria-labelledby="filters-heading">
+            <h2 id="filters-heading">Filters</h2>
+            <form method="get" class="filters-grid">
+                <label>
+                    Search
+                    <input type="text" name="q" value={q} placeholder="name, username, email, clerk id" />
+                </label>
+                <label>
+                    Role
+                    <select name="role">
+                        {
+                            roleOptions.map((option) => (
+                                <option value={option.value} selected={role === option.value}>
+                                    {option.label}
+                                </option>
+                            ))
+                        }
+                    </select>
+                </label>
+                <label>
+                    Active
+                    <select name="is_active">
+                        {
+                            activeOptions.map((option) => (
+                                <option value={option.value} selected={isActiveFilter === option.value}>
+                                    {option.label}
+                                </option>
+                            ))
+                        }
+                    </select>
+                </label>
+                <label>
+                    Hospital
+                    <select name="hospital_slug">
+                        <option value="" selected={hospitalSlug === ""}>All hospitals</option>
+                        {
+                            overview.hospitals.map((hospital) => (
+                                <option value={hospital.slug} selected={hospitalSlug === hospital.slug}>
+                                    {hospital.name}
+                                </option>
+                            ))
+                        }
+                    </select>
+                </label>
+                <label>
+                    Membership role
+                    <select name="membership_role">
+                        {
+                            membershipRoleOptions.map((option) => (
+                                <option value={option.value} selected={membershipRole === option.value}>
+                                    {option.label}
+                                </option>
+                            ))
+                        }
+                    </select>
+                </label>
+                <label>
+                    Integrity flag
+                    <select name="anomaly">
+                        {
+                            anomalyOptions.map((option) => (
+                                <option value={option.value} selected={anomaly === option.value}>
+                                    {option.label}
+                                </option>
+                            ))
+                        }
+                    </select>
+                </label>
+                <label>
+                    Login bucket
+                    <select name="last_login_bucket">
+                        {
+                            loginBuckets.map((option) => (
+                                <option value={option.value} selected={lastLoginBucket === option.value}>
+                                    {option.label}
+                                </option>
+                            ))
+                        }
+                    </select>
+                </label>
+
+                <input type="hidden" name="limit" value={String(limit)} />
+                <input type="hidden" name="offset" value="0" />
+
+                <div class="filter-actions">
+                    <button type="submit">Apply filters</button>
+                    <a href="/admin/users" class="button-link">Reset</a>
+                </div>
+            </form>
+        </section>
+
+        <div class="tower-grid">
+            <section class="panel-inset" aria-labelledby="directory-heading">
+                <div class="section-head">
+                    <h2 id="directory-heading">Directory</h2>
+                    <p class="section-meta">Showing {shownFrom}-{shownTo} of {totalUsers}</p>
+                </div>
+
+                <form method="post" class="bulk-form" data-pending-label="Applying...">
+                    <input type="hidden" name="_action" value="bulk_set_active" />
+
+                    <div class="bulk-controls">
+                        <label>
+                            Bulk action
+                            <select name="is_active">
+                                <option value="true">Activate selected</option>
+                                <option value="false">Deactivate selected</option>
+                            </select>
+                        </label>
+                        <label>
+                            Reason
+                            <input name="reason" required placeholder="reason for bulk operation" />
+                        </label>
+                        <button type="submit" data-confirm="Apply bulk action to selected users?">Run bulk action</button>
+                    </div>
+
+                    <div class="directory-table-wrapper">
+                        <table class="directory-table">
+                            <thead>
+                                <tr>
+                                    <th>Select</th>
+                                    <th>User</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Hospital</th>
+                                    <th>Membership</th>
+                                    <th>Last Login</th>
+                                    <th>Integrity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {
+                                    users.length === 0 ? (
+                                        <tr>
+                                            <td colspan="8" class="empty-cell">
+                                                No users match the current filter.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        users.map((user) => (
+                                            <tr class:list={{ "is-selected": user.clerk_id === selectedID }}>
+                                                <td>
+                                                    <input
+                                                        type="checkbox"
+                                                        name="bulk_clerk_id"
+                                                        value={user.clerk_id}
+                                                        aria-label={`Select ${user.name || user.clerk_id}`}
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <a
+                                                        class="user-link"
+                                                        href={usersPageHref({ selected: user.clerk_id })}
+                                                    >
+                                                        <strong>{user.name || "Unnamed"}</strong>
+                                                        <span>{user.username ? `@${user.username}` : user.email || user.clerk_id}</span>
+                                                    </a>
+                                                </td>
+                                                <td>
+                                                    <span class={`chip role-${user.role}`}>{user.role}</span>
+                                                </td>
+                                                <td>
+                                                    <span class:list={["chip", user.is_active ? "chip-green" : "chip-red"]}>
+                                                        {user.is_active ? "active" : "inactive"}
+                                                    </span>
+                                                </td>
+                                                <td>{user.membership_hospital_name || "-"}</td>
+                                                <td>{user.membership_role || "-"}</td>
+                                                <td>{user.last_login_at || "Never"}</td>
+                                                <td>
+                                                    <div class="anomaly-list">
+                                                        {
+                                                            user.anomalies.length === 0 ? (
+                                                                <span class="chip chip-green">ok</span>
+                                                            ) : (
+                                                                user.anomalies.map((flag) => (
+                                                                    <span class="chip chip-amber">{flag}</span>
+                                                                ))
+                                                            )
+                                                        }
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+
+                <div class="pagination-row">
+                    {
+                        hasPreviousPage ? (
+                            <a href={usersPageHref({ offset: String(Math.max(0, offset - limit)) })} class="pager">
+                                Previous
+                            </a>
+                        ) : (
+                            <span class="pager disabled" aria-disabled="true">
+                                Previous
+                            </span>
+                        )
+                    }
+                    {
+                        hasNextPage ? (
+                            <a href={usersPageHref({ offset: String(offset + limit) })} class="pager">
+                                Next
+                            </a>
+                        ) : (
+                            <span class="pager disabled" aria-disabled="true">
+                                Next
+                            </span>
+                        )
+                    }
+                </div>
+            </section>
+
+            <section class="panel-inset action-dock" aria-labelledby="action-dock-heading">
+                <h2 id="action-dock-heading">Action Dock</h2>
+                {
+                    selectedUser.clerk_id ? (
+                        <>
+                            <div class="selected-user-summary">
+                                <p>
+                                    <strong>{selectedUser.name || "Unnamed"}</strong>
+                                </p>
+                                <p>{selectedUser.email || selectedUser.clerk_id}</p>
+                                <p>
+                                    {selectedUser.membership_hospital_name
+                                        ? `${selectedUser.membership_hospital_name} (${selectedUser.membership_role || "member"})`
+                                        : "No active hospital membership"}
+                                </p>
+                            </div>
+
+                            <form method="post" class="action-form" data-pending-label="Reassigning...">
+                                <input type="hidden" name="_action" value="reassign_hospital" />
+                                <input type="hidden" name="target_clerk_id" value={selectedUser.clerk_id} />
+                                <h3>Reassign Hospital</h3>
+                                <label>
+                                    Hospital
+                                    <select name="hospital_slug" required>
+                                        {
+                                            activeHospitals.map((hospital) => (
+                                                    <option value={hospital.slug}>{hospital.name}</option>
+                                                ))
+                                        }
+                                    </select>
+                                </label>
+                                <label>
+                                    Membership role
+                                    <select name="membership_role">
+                                        <option value="user">User</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Reason
+                                    <input name="reason" required placeholder="why this transfer is needed" />
+                                </label>
+                                {
+                                    activeHospitals.length === 0 ? (
+                                        <p class="subtle">No active hospitals available for reassignment.</p>
+                                    ) : null
+                                }
+                                <button
+                                    type="submit"
+                                    data-confirm="Reassign this user to another hospital?"
+                                    disabled={activeHospitals.length === 0}
+                                >
+                                    Reassign
+                                </button>
+                            </form>
+
+                            <form method="post" class="action-form" data-pending-label="Updating...">
+                                <input type="hidden" name="_action" value="set_membership_role" />
+                                <input type="hidden" name="target_clerk_id" value={selectedUser.clerk_id} />
+                                <h3>Set Membership Role</h3>
+                                <label>
+                                    Role
+                                    <select name="membership_role">
+                                        <option value="user">User</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Reason
+                                    <input name="reason" required placeholder="why this role change is needed" />
+                                </label>
+                                <button type="submit">Update role</button>
+                            </form>
+
+                            <form
+                                method="post"
+                                class="action-form"
+                                data-pending-label="Detaching..."
+                                data-confirm="Detach active membership for this user?"
+                            >
+                                <input type="hidden" name="_action" value="detach_membership" />
+                                <input type="hidden" name="target_clerk_id" value={selectedUser.clerk_id} />
+                                <h3>Detach Membership</h3>
+                                <label>
+                                    Reason
+                                    <input name="reason" required placeholder="why membership should be removed" />
+                                </label>
+                                <button type="submit" class="danger">Detach</button>
+                            </form>
+
+                            <form method="post" class="action-form" data-pending-label="Saving...">
+                                <input type="hidden" name="_action" value="set_active" />
+                                <input type="hidden" name="target_clerk_id" value={selectedUser.clerk_id} />
+                                <h3>Set Active State</h3>
+                                <label>
+                                    State
+                                    <select name="is_active">
+                                        <option value="true">Active</option>
+                                        <option value="false">Inactive</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Reason
+                                    <input name="reason" required placeholder="why active state is changing" />
+                                </label>
+                                <button type="submit">Apply</button>
+                            </form>
+
+                            <form method="post" class="action-form" data-pending-label="Reconciling...">
+                                <input type="hidden" name="_action" value="recompute_state" />
+                                <input type="hidden" name="target_clerk_id" value={selectedUser.clerk_id} />
+                                <h3>Recompute State</h3>
+                                <label>
+                                    Reason
+                                    <input name="reason" placeholder="optional note" />
+                                </label>
+                                <button type="submit">Recompute</button>
+                            </form>
+                        </>
+                    ) : (
+                        <p class="subtle">Select a user from the directory to access reassignment and lifecycle actions.</p>
+                    )
+                }
+            </section>
+
+            <section class="panel-inset" aria-labelledby="integrity-heading">
+                <h2 id="integrity-heading">Integrity Feed</h2>
+                <div class="integrity-grid">
+                    <a href={usersPageHref({ anomaly: "no_membership", offset: "0" })} class="integrity-card">
+                        <strong>No membership</strong>
+                        <span>{overview.unassigned_users}</span>
+                    </a>
+                    <a href={usersPageHref({ anomaly: "admin_role_mismatch", offset: "0" })} class="integrity-card">
+                        <strong>Admin drift</strong>
+                        <span>{overview.admin_role_mismatch_users}</span>
+                    </a>
+                    <a href={usersPageHref({ anomaly: "inactive_with_membership", offset: "0" })} class="integrity-card">
+                        <strong>Inactive with membership</strong>
+                        <span>{overview.inactive_with_membership_users}</span>
+                    </a>
+                    <a href={usersPageHref({ anomaly: "assigned_inactive_hospital", offset: "0" })} class="integrity-card">
+                        <strong>Inactive hospital assignment</strong>
+                        <span>{overview.assigned_inactive_hospital_users}</span>
+                    </a>
+                    <a href={usersPageHref({ anomaly: "never_logged_in", offset: "0" })} class="integrity-card">
+                        <strong>Never logged in</strong>
+                        <span>{overview.never_logged_in_users}</span>
+                    </a>
+                </div>
+
+                <h3 class="history-heading">Recent actions</h3>
+                {
+                    selectedActions.length === 0 ? (
+                        <p class="subtle">No recent actions for selected user.</p>
+                    ) : (
+                        <ul class="history-list">
+                            {
+                                selectedActions.map((entry) => (
+                                    <li>
+                                        <strong>{entry.action_type}</strong>
+                                        <p>{entry.reason}</p>
+                                        <span>{entry.created_at || "Unknown timestamp"}</span>
+                                        <span class="subtle">by {entry.actor_clerk_id}</span>
+                                    </li>
+                                ))
+                            }
+                        </ul>
+                    )
+                }
+            </section>
+        </div>
     </section>
 </Layout>
+
+<script is:inline>
+    (() => {
+        const forms = document.querySelectorAll("form[data-pending-label]");
+        for (const form of forms) {
+            form.addEventListener("submit", (event) => {
+                const confirmText = form.getAttribute("data-confirm");
+                if (confirmText && !window.confirm(confirmText)) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
+                const button =
+                    submitter?.tagName === "BUTTON"
+                        ? submitter
+                        : form.querySelector("button[type='submit']");
+                if (!button || button.disabled) {
+                    return;
+                }
+
+                const pendingLabel = form.getAttribute("data-pending-label") ?? "Saving...";
+                button.setAttribute("aria-busy", "true");
+                button.textContent = pendingLabel;
+                button.disabled = true;
+            });
+        }
+    })();
+</script>
 
 <style>
     .panel {
@@ -55,6 +941,16 @@ const users = usersResult.data;
         border-radius: 16px;
         padding: clamp(1rem, 2.5vw, 1.5rem);
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .workspace {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .header-block h1 {
+        margin: 0;
+        font-size: clamp(1.2rem, 3vw, 1.65rem);
     }
 
     .eyebrow {
@@ -66,68 +962,390 @@ const users = usersResult.data;
         text-transform: uppercase;
     }
 
-    h1 {
-        margin: 0 0 0.5rem;
-        font-size: clamp(1.25rem, 3vw, 1.6rem);
-        line-height: 1.25;
+    .subtitle {
+        margin: 0.3rem 0 0;
+        color: #4b607b;
     }
 
-    .user-list {
-        list-style: none;
-        margin: 0.7rem 0 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
+    .message {
+        margin: 0;
+        color: #1f365b;
+    }
+
+    .message.error {
+        color: #991b1b;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 0.55rem;
     }
 
-    .user-list li {
-        padding: 0.65rem 0.75rem;
-        border: 1px solid #e4ecfb;
-        border-radius: 10px;
+    .metric-card {
+        border: 1px solid #d7e5fb;
+        border-radius: 12px;
+        padding: 0.6rem;
         background: #f8fbff;
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.35rem;
+        display: grid;
+        gap: 0.2rem;
     }
 
-    .user-name {
-        font-weight: 600;
-    }
-
-    .user-username {
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .user-email {
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .user-role {
-        margin-left: auto;
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 0.15rem 0.5rem;
-        border-radius: 999px;
-        background: #e0e7ff;
-        color: #3730a3;
+    .metric-card span {
+        font-size: 0.76rem;
+        color: #4f6481;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
 
-    .user-role.role-superadmin {
+    .metric-card strong {
+        font-size: 1.15rem;
+        color: #1a3764;
+    }
+
+    .panel-inset {
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+        background: #fbfdff;
+        padding: 0.75rem;
+    }
+
+    .panel-inset h2 {
+        margin: 0;
+        font-size: 1rem;
+    }
+
+    .filters-grid {
+        margin-top: 0.65rem;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.55rem;
+    }
+
+    label {
+        display: grid;
+        gap: 0.28rem;
+        font-size: 0.82rem;
+        color: #344761;
+    }
+
+    input,
+    select {
+        border: 1px solid #c7d8f3;
+        border-radius: 8px;
+        padding: 0.45rem 0.55rem;
+        font-size: 0.88rem;
+        background: #fff;
+    }
+
+    .filter-actions {
+        display: flex;
+        align-items: end;
+        gap: 0.45rem;
+    }
+
+    button,
+    .button-link,
+    .pager {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #1f66d2;
+        border-radius: 999px;
+        background: #1f66d2;
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.84rem;
+        padding: 0.42rem 0.9rem;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .button-link {
+        background: #fff;
+        color: #1f66d2;
+    }
+
+    button:hover,
+    .button-link:hover,
+    .pager:hover {
+        filter: brightness(0.96);
+    }
+
+    .tower-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+    }
+
+    .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .section-meta {
+        margin: 0;
+        color: #5d708d;
+        font-size: 0.85rem;
+    }
+
+    .bulk-form {
+        display: grid;
+        gap: 0.6rem;
+        margin-top: 0.65rem;
+    }
+
+    .bulk-controls {
+        display: grid;
+        grid-template-columns: minmax(0, 170px) minmax(0, 1fr) auto;
+        gap: 0.55rem;
+        align-items: end;
+    }
+
+    .directory-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .directory-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 760px;
+        font-size: 0.86rem;
+    }
+
+    .directory-table th,
+    .directory-table td {
+        border-bottom: 1px solid #e3ecfb;
+        padding: 0.45rem;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .directory-table thead th {
+        position: sticky;
+        top: 0;
+        background: #f4f8ff;
+        z-index: 1;
+        color: #40597c;
+    }
+
+    .directory-table tr.is-selected {
+        background: #eef4ff;
+    }
+
+    .user-link {
+        display: grid;
+        gap: 0.12rem;
+        text-decoration: none;
+        color: #153a67;
+    }
+
+    .user-link span {
+        color: #66788f;
+        font-size: 0.8rem;
+    }
+
+    .empty-cell {
+        text-align: center;
+        color: #677995;
+        padding: 1.1rem;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.14rem 0.5rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: #e6edfc;
+        color: #2f4f79;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .chip-green {
+        background: #dcfce7;
+        color: #14532d;
+    }
+
+    .chip-red {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .chip-amber {
         background: #fef3c7;
         color: #92400e;
     }
 
-    .user-inactive {
-        font-size: 0.75rem;
-        padding: 0.15rem 0.5rem;
-        border-radius: 999px;
-        background: #fee2e2;
-        color: #991b1b;
+    .role-superadmin {
+        background: #ede9fe;
+        color: #5b21b6;
+    }
+
+    .role-admin {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .anomaly-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .pagination-row {
+        margin-top: 0.55rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 0.45rem;
+    }
+
+    .pager.disabled {
+        pointer-events: none;
+        opacity: 0.45;
+    }
+
+    .action-dock {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .selected-user-summary {
+        border: 1px solid #d9e6fa;
+        border-radius: 10px;
+        background: #fff;
+        padding: 0.55rem;
+    }
+
+    .selected-user-summary p {
+        margin: 0.1rem 0;
+        color: #2b4264;
+        font-size: 0.86rem;
+    }
+
+    .action-form {
+        border: 1px solid #dbe7fb;
+        border-radius: 10px;
+        background: #fff;
+        padding: 0.55rem;
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .action-form h3 {
+        margin: 0;
+        font-size: 0.92rem;
+        color: #1d3b68;
+    }
+
+    .danger {
+        background: #b42323;
+        border-color: #b42323;
+    }
+
+    .integrity-grid {
+        margin-top: 0.55rem;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .integrity-card {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        background: #fff;
+        padding: 0.55rem;
+        display: grid;
+        text-decoration: none;
+        color: #27486f;
+        gap: 0.15rem;
+    }
+
+    .integrity-card span {
+        font-size: 1.02rem;
+        font-weight: 700;
+    }
+
+    .history-heading {
+        margin: 0.8rem 0 0.35rem;
+        font-size: 0.92rem;
+        color: #2a4367;
+    }
+
+    .history-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.45rem;
+    }
+
+    .history-list li {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        background: #fff;
+        padding: 0.5rem;
+        display: grid;
+        gap: 0.15rem;
+    }
+
+    .history-list p,
+    .history-list span {
+        margin: 0;
+        color: #556a88;
+        font-size: 0.82rem;
+    }
+
+    .subtle {
+        color: #6b7280;
+        margin: 0;
+    }
+
+    @media (max-width: 1240px) {
+        .metrics-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .tower-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 820px) {
+        .filters-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .bulk-controls {
+            grid-template-columns: 1fr;
+        }
+
+        .integrity-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 620px) {
+        .metrics-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .pagination-row {
+            flex-direction: column;
+        }
+
+        .pager {
+            width: 100%;
+        }
     }
 </style>
