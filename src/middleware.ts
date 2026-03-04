@@ -51,6 +51,16 @@ const adminGuard = defineMiddleware(async (context, next) => {
         return context.redirect("/");
     }
 
+    const response = await fetch(`${context.locals.apiUrl}/admin`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    }).catch(() => null);
+    if (!response?.ok) {
+        return context.redirect("/");
+    }
+
     return next();
 });
 
