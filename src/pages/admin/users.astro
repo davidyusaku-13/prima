@@ -485,28 +485,35 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
 ---
 
 <Layout title="Admin Users Control Tower">
-    <section class="panel workspace">
-        <header class="header-block">
+    <section class="control-room">
+        <header class="hero-panel">
             <p class="eyebrow">Admin</p>
-            <h1>Users Control Tower</h1>
-            <p class="subtitle">Global user lifecycle, tenant reassignment, and integrity operations for superadmins.</p>
+            <h1>Users Command Atlas</h1>
+            <p class="hero-copy">
+                Global lifecycle controls for identity health, tenant assignment, and operator interventions.
+            </p>
+            <div class="hero-meta" role="status" aria-live="polite">
+                <span>{shownFrom}-{shownTo} visible</span>
+                <span>{totalUsers} total indexed</span>
+                <span>{selectedID ? `focused: ${selectedID}` : "no user selected"}</span>
+            </div>
         </header>
 
         {actionResult && (
-            <p class="message" role="status">
+            <p class="flash flash-ok" role="status">
                 {actionResult}
             </p>
         )}
         {actionError && (
-            <p class="message error" role="alert">
+            <p class="flash flash-error" role="alert">
                 {actionError}
             </p>
         )}
 
-        <section class="metrics-grid" aria-label="User metrics">
+        <section class="metric-ribbon" aria-label="User metrics">
             {
                 metricCards.map((card) => (
-                    <article class="metric-card">
+                    <article class="metric-pill">
                         <span>{card.label}</span>
                         <strong>{card.value}</strong>
                     </article>
@@ -514,102 +521,141 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
             }
         </section>
 
-        <section class="panel-inset" aria-labelledby="filters-heading">
-            <h2 id="filters-heading">Filters</h2>
-            <form method="get" class="filters-grid">
-                <label>
-                    Search
-                    <input type="text" name="q" value={q} placeholder="name, username, email, clerk id" />
-                </label>
-                <label>
-                    Role
-                    <select name="role">
-                        {
-                            roleOptions.map((option) => (
-                                <option value={option.value} selected={role === option.value}>
-                                    {option.label}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </label>
-                <label>
-                    Active
-                    <select name="is_active">
-                        {
-                            activeOptions.map((option) => (
-                                <option value={option.value} selected={isActiveFilter === option.value}>
-                                    {option.label}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </label>
-                <label>
-                    Hospital
-                    <select name="hospital_slug">
-                        <option value="" selected={hospitalSlug === ""}>All hospitals</option>
-                        {
-                            overview.hospitals.map((hospital) => (
-                                <option value={hospital.slug} selected={hospitalSlug === hospital.slug}>
-                                    {hospital.name}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </label>
-                <label>
-                    Membership role
-                    <select name="membership_role">
-                        {
-                            membershipRoleOptions.map((option) => (
-                                <option value={option.value} selected={membershipRole === option.value}>
-                                    {option.label}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </label>
-                <label>
-                    Integrity flag
-                    <select name="anomaly">
-                        {
-                            anomalyOptions.map((option) => (
-                                <option value={option.value} selected={anomaly === option.value}>
-                                    {option.label}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </label>
-                <label>
-                    Login bucket
-                    <select name="last_login_bucket">
-                        {
-                            loginBuckets.map((option) => (
-                                <option value={option.value} selected={lastLoginBucket === option.value}>
-                                    {option.label}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </label>
-
-                <input type="hidden" name="limit" value={String(limit)} />
-                <input type="hidden" name="offset" value="0" />
-
-                <div class="filter-actions">
-                    <button type="submit">Apply filters</button>
-                    <a href="/admin/users" class="button-link">Reset</a>
+        <div class="workspace-grid">
+            <aside class="filters-panel" aria-labelledby="filters-heading">
+                <div class="panel-head">
+                    <h2 id="filters-heading">Query Lab</h2>
+                    <p>Slice the graph before running an operation.</p>
                 </div>
-            </form>
-        </section>
 
-        <div class="tower-grid">
-            <section class="panel-inset" aria-labelledby="directory-heading">
-                <div class="section-head">
-                    <h2 id="directory-heading">Directory</h2>
-                    <p class="section-meta">Showing {shownFrom}-{shownTo} of {totalUsers}</p>
+                <form method="get" class="filters-form">
+                    <label>
+                        Search
+                        <input type="text" name="q" value={q} placeholder="name, username, email, clerk id" />
+                    </label>
+                    <label>
+                        Role
+                        <select name="role">
+                            {
+                                roleOptions.map((option) => (
+                                    <option value={option.value} selected={role === option.value}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Active
+                        <select name="is_active">
+                            {
+                                activeOptions.map((option) => (
+                                    <option value={option.value} selected={isActiveFilter === option.value}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Hospital
+                        <select name="hospital_slug">
+                            <option value="" selected={hospitalSlug === ""}>All hospitals</option>
+                            {
+                                overview.hospitals.map((hospital) => (
+                                    <option value={hospital.slug} selected={hospitalSlug === hospital.slug}>
+                                        {hospital.name}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Membership role
+                        <select name="membership_role">
+                            {
+                                membershipRoleOptions.map((option) => (
+                                    <option value={option.value} selected={membershipRole === option.value}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Integrity flag
+                        <select name="anomaly">
+                            {
+                                anomalyOptions.map((option) => (
+                                    <option value={option.value} selected={anomaly === option.value}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Login bucket
+                        <select name="last_login_bucket">
+                            {
+                                loginBuckets.map((option) => (
+                                    <option value={option.value} selected={lastLoginBucket === option.value}>
+                                        {option.label}
+                                    </option>
+                                ))
+                            }
+                        </select>
+                    </label>
+
+                    <input type="hidden" name="limit" value={String(limit)} />
+                    <input type="hidden" name="offset" value="0" />
+
+                    <div class="filter-actions">
+                        <button type="submit" class="cta">Apply filters</button>
+                        <a href="/admin/users" class="ghost">Reset</a>
+                    </div>
+                </form>
+
+                <section class="integrity-feed" aria-labelledby="integrity-heading">
+                    <h3 id="integrity-heading">Integrity Radar</h3>
+                    <div class="integrity-grid">
+                        <a href={usersPageHref({ anomaly: "no_membership", offset: "0" })} class="integrity-card">
+                            <strong>No membership</strong>
+                            <span>{overview.unassigned_users}</span>
+                        </a>
+                        <a href={usersPageHref({ anomaly: "admin_role_mismatch", offset: "0" })} class="integrity-card">
+                            <strong>Admin drift</strong>
+                            <span>{overview.admin_role_mismatch_users}</span>
+                        </a>
+                        <a
+                            href={usersPageHref({ anomaly: "inactive_with_membership", offset: "0" })}
+                            class="integrity-card"
+                        >
+                            <strong>Inactive with membership</strong>
+                            <span>{overview.inactive_with_membership_users}</span>
+                        </a>
+                        <a
+                            href={usersPageHref({ anomaly: "assigned_inactive_hospital", offset: "0" })}
+                            class="integrity-card"
+                        >
+                            <strong>Inactive hospital assignment</strong>
+                            <span>{overview.assigned_inactive_hospital_users}</span>
+                        </a>
+                        <a href={usersPageHref({ anomaly: "never_logged_in", offset: "0" })} class="integrity-card">
+                            <strong>Never logged in</strong>
+                            <span>{overview.never_logged_in_users}</span>
+                        </a>
+                    </div>
+                </section>
+            </aside>
+
+            <section class="directory-panel" aria-labelledby="directory-heading">
+                <div class="panel-head directory-head">
+                    <div>
+                        <h2 id="directory-heading">Directory Stream</h2>
+                        <p>Showing {shownFrom}-{shownTo} of {totalUsers}</p>
+                    </div>
+                    <span class="directory-chip">live</span>
                 </div>
 
                 <form method="post" class="bulk-form" data-pending-label="Applying...">
@@ -627,10 +673,12 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                             Reason
                             <input name="reason" required placeholder="reason for bulk operation" />
                         </label>
-                        <button type="submit" data-confirm="Apply bulk action to selected users?">Run bulk action</button>
+                        <button type="submit" class="cta" data-confirm="Apply bulk action to selected users?">
+                            Run bulk action
+                        </button>
                     </div>
 
-                    <div class="directory-table-wrapper">
+                    <div class="directory-table-wrap">
                         <table class="directory-table">
                             <thead>
                                 <tr>
@@ -664,19 +712,20 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                                     />
                                                 </td>
                                                 <td>
-                                                    <a
-                                                        class="user-link"
-                                                        href={usersPageHref({ selected: user.clerk_id })}
-                                                    >
+                                                    <a class="user-link" href={usersPageHref({ selected: user.clerk_id })}>
                                                         <strong>{user.name || "Unnamed"}</strong>
-                                                        <span>{user.username ? `@${user.username}` : user.email || user.clerk_id}</span>
+                                                        <span>
+                                                            {user.username
+                                                                ? `@${user.username}`
+                                                                : user.email || user.clerk_id}
+                                                        </span>
                                                     </a>
                                                 </td>
                                                 <td>
                                                     <span class={`chip role-${user.role}`}>{user.role}</span>
                                                 </td>
                                                 <td>
-                                                    <span class:list={["chip", user.is_active ? "chip-green" : "chip-red"]}>
+                                                    <span class:list={["chip", user.is_active ? "chip-up" : "chip-down"]}>
                                                         {user.is_active ? "active" : "inactive"}
                                                     </span>
                                                 </td>
@@ -687,10 +736,10 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                                     <div class="anomaly-list">
                                                         {
                                                             user.anomalies.length === 0 ? (
-                                                                <span class="chip chip-green">ok</span>
+                                                                <span class="chip chip-up">ok</span>
                                                             ) : (
                                                                 user.anomalies.map((flag) => (
-                                                                    <span class="chip chip-amber">{flag}</span>
+                                                                    <span class="chip chip-alert">{flag}</span>
                                                                 ))
                                                             )
                                                         }
@@ -708,22 +757,22 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                 <div class="pagination-row">
                     {
                         hasPreviousPage ? (
-                            <a href={usersPageHref({ offset: String(Math.max(0, offset - limit)) })} class="pager">
+                            <a href={usersPageHref({ offset: String(Math.max(0, offset - limit)) })} class="ghost pager">
                                 Previous
                             </a>
                         ) : (
-                            <span class="pager disabled" aria-disabled="true">
+                            <span class="ghost pager disabled" aria-disabled="true">
                                 Previous
                             </span>
                         )
                     }
                     {
                         hasNextPage ? (
-                            <a href={usersPageHref({ offset: String(offset + limit) })} class="pager">
+                            <a href={usersPageHref({ offset: String(offset + limit) })} class="ghost pager">
                                 Next
                             </a>
                         ) : (
-                            <span class="pager disabled" aria-disabled="true">
+                            <span class="ghost pager disabled" aria-disabled="true">
                                 Next
                             </span>
                         )
@@ -731,8 +780,12 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                 </div>
             </section>
 
-            <section class="panel-inset action-dock" aria-labelledby="action-dock-heading">
-                <h2 id="action-dock-heading">Action Dock</h2>
+            <aside class="actions-panel" aria-labelledby="dock-heading">
+                <div class="panel-head">
+                    <h2 id="dock-heading">Operator Dock</h2>
+                    <p>High-impact commands for selected identity.</p>
+                </div>
+
                 {
                     selectedUser.clerk_id ? (
                         <>
@@ -757,8 +810,8 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                     <select name="hospital_slug" required>
                                         {
                                             activeHospitals.map((hospital) => (
-                                                    <option value={hospital.slug}>{hospital.name}</option>
-                                                ))
+                                                <option value={hospital.slug}>{hospital.name}</option>
+                                            ))
                                         }
                                     </select>
                                 </label>
@@ -780,6 +833,7 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                 }
                                 <button
                                     type="submit"
+                                    class="cta"
                                     data-confirm="Reassign this user to another hospital?"
                                     disabled={activeHospitals.length === 0}
                                 >
@@ -802,7 +856,7 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                     Reason
                                     <input name="reason" required placeholder="why this role change is needed" />
                                 </label>
-                                <button type="submit">Update role</button>
+                                <button type="submit" class="cta">Update role</button>
                             </form>
 
                             <form
@@ -836,7 +890,7 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                     Reason
                                     <input name="reason" required placeholder="why active state is changing" />
                                 </label>
-                                <button type="submit">Apply</button>
+                                <button type="submit" class="cta">Apply</button>
                             </form>
 
                             <form method="post" class="action-form" data-pending-label="Reconciling...">
@@ -847,60 +901,38 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
                                     Reason
                                     <input name="reason" placeholder="optional note" />
                                 </label>
-                                <button type="submit">Recompute</button>
+                                <button type="submit" class="cta">Recompute</button>
                             </form>
+
+                            <section class="history-block" aria-labelledby="history-heading">
+                                <h3 id="history-heading">Recent Actions</h3>
+                                {
+                                    selectedActions.length === 0 ? (
+                                        <p class="subtle">No recent actions for selected user.</p>
+                                    ) : (
+                                        <ul class="history-list">
+                                            {
+                                                selectedActions.map((entry) => (
+                                                    <li>
+                                                        <strong>{entry.action_type}</strong>
+                                                        <p>{entry.reason}</p>
+                                                        <span>{entry.created_at || "Unknown timestamp"}</span>
+                                                        <span class="subtle">by {entry.actor_clerk_id}</span>
+                                                    </li>
+                                                ))
+                                            }
+                                        </ul>
+                                    )
+                                }
+                            </section>
                         </>
                     ) : (
-                        <p class="subtle">Select a user from the directory to access reassignment and lifecycle actions.</p>
+                        <p class="subtle">
+                            Select a user from the directory to access reassignment and lifecycle operations.
+                        </p>
                     )
                 }
-            </section>
-
-            <section class="panel-inset" aria-labelledby="integrity-heading">
-                <h2 id="integrity-heading">Integrity Feed</h2>
-                <div class="integrity-grid">
-                    <a href={usersPageHref({ anomaly: "no_membership", offset: "0" })} class="integrity-card">
-                        <strong>No membership</strong>
-                        <span>{overview.unassigned_users}</span>
-                    </a>
-                    <a href={usersPageHref({ anomaly: "admin_role_mismatch", offset: "0" })} class="integrity-card">
-                        <strong>Admin drift</strong>
-                        <span>{overview.admin_role_mismatch_users}</span>
-                    </a>
-                    <a href={usersPageHref({ anomaly: "inactive_with_membership", offset: "0" })} class="integrity-card">
-                        <strong>Inactive with membership</strong>
-                        <span>{overview.inactive_with_membership_users}</span>
-                    </a>
-                    <a href={usersPageHref({ anomaly: "assigned_inactive_hospital", offset: "0" })} class="integrity-card">
-                        <strong>Inactive hospital assignment</strong>
-                        <span>{overview.assigned_inactive_hospital_users}</span>
-                    </a>
-                    <a href={usersPageHref({ anomaly: "never_logged_in", offset: "0" })} class="integrity-card">
-                        <strong>Never logged in</strong>
-                        <span>{overview.never_logged_in_users}</span>
-                    </a>
-                </div>
-
-                <h3 class="history-heading">Recent actions</h3>
-                {
-                    selectedActions.length === 0 ? (
-                        <p class="subtle">No recent actions for selected user.</p>
-                    ) : (
-                        <ul class="history-list">
-                            {
-                                selectedActions.map((entry) => (
-                                    <li>
-                                        <strong>{entry.action_type}</strong>
-                                        <p>{entry.reason}</p>
-                                        <span>{entry.created_at || "Unknown timestamp"}</span>
-                                        <span class="subtle">by {entry.actor_clerk_id}</span>
-                                    </li>
-                                ))
-                            }
-                        </ul>
-                    )
-                }
-            </section>
+            </aside>
         </div>
     </section>
 </Layout>
@@ -935,22 +967,32 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
 </script>
 
 <style>
-    .panel {
+    .control-room {
         background: #ffffff;
         border: 1px solid #dce6f7;
         border-radius: 16px;
         padding: clamp(1rem, 2.5vw, 1.5rem);
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-    }
-
-    .workspace {
         display: grid;
         gap: 0.9rem;
+        color: #1f365b;
     }
 
-    .header-block h1 {
-        margin: 0;
-        font-size: clamp(1.2rem, 3vw, 1.65rem);
+    .hero-panel,
+    .filters-panel,
+    .directory-panel,
+    .actions-panel,
+    .metric-pill,
+    .flash {
+        background: #ffffff;
+        border: 1px solid #dce6f7;
+        border-radius: 12px;
+    }
+
+    .hero-panel {
+        padding: 0.9rem 1rem;
+        display: grid;
+        gap: 0.35rem;
     }
 
     .eyebrow {
@@ -962,69 +1004,119 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
         text-transform: uppercase;
     }
 
-    .subtitle {
-        margin: 0.3rem 0 0;
-        color: #4b607b;
-    }
-
-    .message {
+    .hero-panel h1 {
         margin: 0;
+        font-size: clamp(1.2rem, 3vw, 1.65rem);
+        line-height: 1.2;
         color: #1f365b;
     }
 
-    .message.error {
-        color: #991b1b;
+    .hero-copy {
+        margin: 0;
+        color: #4b607b;
+        font-size: 0.9rem;
     }
 
-    .metrics-grid {
+    .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.15rem;
+    }
+
+    .hero-meta span {
+        border-radius: 999px;
+        border: 1px solid #d6e2f7;
+        background: #f8fbff;
+        padding: 0.2rem 0.56rem;
+        font-size: 0.75rem;
+        color: #4b607b;
+    }
+
+    .flash {
+        margin: 0;
+        padding: 0.48rem 0.7rem;
+        font-size: 0.86rem;
+    }
+
+    .flash-ok {
+        color: #14532d;
+        background: #ecfdf3;
+        border-color: #b7e8cb;
+    }
+
+    .flash-error {
+        color: #991b1b;
+        background: #fef2f2;
+        border-color: #f2c9c9;
+    }
+
+    .metric-ribbon {
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 0.55rem;
+        gap: 0.48rem;
     }
 
-    .metric-card {
-        border: 1px solid #d7e5fb;
-        border-radius: 12px;
-        padding: 0.6rem;
-        background: #f8fbff;
+    .metric-pill {
+        padding: 0.55rem 0.65rem;
         display: grid;
         gap: 0.2rem;
+        background: #f8fbff;
     }
 
-    .metric-card span {
-        font-size: 0.76rem;
-        color: #4f6481;
+    .metric-pill span {
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        font-size: 0.72rem;
+        color: #4f6481;
     }
 
-    .metric-card strong {
-        font-size: 1.15rem;
+    .metric-pill strong {
+        font-size: 1.1rem;
         color: #1a3764;
+        line-height: 1;
     }
 
-    .panel-inset {
-        border: 1px solid #dce6f7;
-        border-radius: 12px;
-        background: #fbfdff;
+    .workspace-grid {
+        display: grid;
+        grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.55fr) minmax(300px, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+    }
+
+    .filters-panel,
+    .directory-panel,
+    .actions-panel {
         padding: 0.75rem;
+        background: #fbfdff;
     }
 
-    .panel-inset h2 {
+    .panel-head {
+        display: grid;
+        gap: 0.15rem;
+        margin-bottom: 0.58rem;
+    }
+
+    .panel-head h2 {
         margin: 0;
         font-size: 1rem;
+        color: #1f365b;
     }
 
-    .filters-grid {
-        margin-top: 0.65rem;
+    .panel-head p {
+        margin: 0;
+        color: #5f738f;
+        font-size: 0.82rem;
+    }
+
+    .filters-form {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.55rem;
+        gap: 0.5rem;
     }
 
     label {
         display: grid;
-        gap: 0.28rem;
+        gap: 0.24rem;
         font-size: 0.82rem;
         color: #344761;
     }
@@ -1033,94 +1125,151 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
     select {
         border: 1px solid #c7d8f3;
         border-radius: 8px;
-        padding: 0.45rem 0.55rem;
-        font-size: 0.88rem;
-        background: #fff;
+        padding: 0.44rem 0.55rem;
+        font-size: 0.86rem;
+        background: #ffffff;
+        color: #1f365b;
+    }
+
+    input:focus,
+    select:focus {
+        outline: none;
+        border-color: #2f76df;
+        box-shadow: 0 0 0 2px rgba(47, 118, 223, 0.14);
     }
 
     .filter-actions {
         display: flex;
-        align-items: end;
         gap: 0.45rem;
+        margin-top: 0.1rem;
     }
 
-    button,
-    .button-link,
-    .pager {
+    .cta,
+    .ghost {
+        border-radius: 999px;
+        border: 1px solid transparent;
+        padding: 0.42rem 0.9rem;
+        text-decoration: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid #1f66d2;
-        border-radius: 999px;
-        background: #1f66d2;
-        color: #fff;
-        font-weight: 600;
-        font-size: 0.84rem;
-        padding: 0.42rem 0.9rem;
-        text-decoration: none;
         cursor: pointer;
+        font-size: 0.82rem;
+        font-weight: 600;
+        transition:
+            background-color 120ms ease,
+            border-color 120ms ease,
+            color 120ms ease,
+            filter 120ms ease;
     }
 
-    .button-link {
-        background: #fff;
+    .cta {
+        background: #1f66d2;
+        color: #ffffff;
+        border-color: #1f66d2;
+    }
+
+    .ghost {
+        background: #ffffff;
         color: #1f66d2;
+        border-color: #bdd2f2;
     }
 
-    button:hover,
-    .button-link:hover,
-    .pager:hover {
-        filter: brightness(0.96);
+    .cta:hover,
+    .ghost:hover {
+        filter: brightness(0.97);
     }
 
-    .tower-grid {
+    .integrity-feed {
+        margin-top: 0.72rem;
+        padding-top: 0.68rem;
+        border-top: 1px solid #e2ebfa;
+    }
+
+    .integrity-feed h3 {
+        margin: 0 0 0.45rem;
+        font-size: 0.92rem;
+        color: #2a4367;
+    }
+
+    .integrity-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
-        gap: 0.75rem;
-        align-items: start;
+        gap: 0.45rem;
     }
 
-    .section-head {
+    .integrity-card {
+        border: 1px solid #dce6f7;
+        border-radius: 10px;
+        padding: 0.5rem 0.55rem;
+        text-decoration: none;
+        color: #27486f;
+        background: #ffffff;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 0.55rem;
+    }
+
+    .integrity-card strong {
+        font-size: 0.8rem;
+    }
+
+    .integrity-card span {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1f365b;
+    }
+
+    .directory-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
         gap: 0.6rem;
     }
 
-    .section-meta {
-        margin: 0;
-        color: #5d708d;
-        font-size: 0.85rem;
+    .directory-chip {
+        border-radius: 999px;
+        padding: 0.16rem 0.52rem;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        background: #e7f0ff;
+        color: #1f66d2;
+        border: 1px solid #c7daf9;
     }
 
     .bulk-form {
         display: grid;
-        gap: 0.6rem;
-        margin-top: 0.65rem;
+        gap: 0.58rem;
     }
 
     .bulk-controls {
         display: grid;
-        grid-template-columns: minmax(0, 170px) minmax(0, 1fr) auto;
-        gap: 0.55rem;
+        grid-template-columns: 180px minmax(0, 1fr) auto;
+        gap: 0.5rem;
         align-items: end;
     }
 
-    .directory-table-wrapper {
-        overflow-x: auto;
+    .directory-table-wrap {
+        overflow: auto;
+        border-radius: 10px;
+        border: 1px solid #dce6f7;
+        background: #ffffff;
     }
 
     .directory-table {
         width: 100%;
+        min-width: 860px;
         border-collapse: separate;
         border-spacing: 0;
-        min-width: 760px;
-        font-size: 0.86rem;
+        font-size: 0.84rem;
     }
 
     .directory-table th,
     .directory-table td {
-        border-bottom: 1px solid #e3ecfb;
         padding: 0.45rem;
+        border-bottom: 1px solid #e3ecfb;
         text-align: left;
         vertical-align: top;
     }
@@ -1131,54 +1280,63 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
         background: #f4f8ff;
         z-index: 1;
         color: #40597c;
+        font-size: 0.76rem;
     }
 
     .directory-table tr.is-selected {
         background: #eef4ff;
     }
 
+    .directory-table tr:hover {
+        background: #f8fbff;
+    }
+
     .user-link {
         display: grid;
-        gap: 0.12rem;
+        gap: 0.1rem;
         text-decoration: none;
         color: #153a67;
     }
 
+    .user-link strong {
+        font-size: 0.86rem;
+    }
+
     .user-link span {
+        font-size: 0.77rem;
         color: #66788f;
-        font-size: 0.8rem;
     }
 
     .empty-cell {
         text-align: center;
-        color: #677995;
         padding: 1.1rem;
+        color: #677995;
     }
 
     .chip {
-        display: inline-flex;
-        align-items: center;
         border-radius: 999px;
         padding: 0.14rem 0.5rem;
         font-size: 0.72rem;
         font-weight: 600;
-        background: #e6edfc;
-        color: #2f4f79;
         text-transform: uppercase;
         letter-spacing: 0.04em;
+        background: #e6edfc;
+        color: #2f4f79;
+        display: inline-flex;
+        align-items: center;
     }
 
-    .chip-green {
+    .chip-up {
         background: #dcfce7;
         color: #14532d;
     }
 
-    .chip-red {
+    .chip-down {
         background: #fee2e2;
         color: #991b1b;
     }
 
-    .chip-amber {
+    .chip-alert {
         background: #fef3c7;
         color: #92400e;
     }
@@ -1195,47 +1353,53 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
 
     .anomaly-list {
         display: flex;
-        flex-wrap: wrap;
         gap: 0.25rem;
+        flex-wrap: wrap;
     }
 
     .pagination-row {
-        margin-top: 0.55rem;
+        margin-top: 0.35rem;
         display: flex;
         justify-content: space-between;
         gap: 0.45rem;
     }
 
-    .pager.disabled {
-        pointer-events: none;
-        opacity: 0.45;
+    .pager {
+        min-width: 110px;
     }
 
-    .action-dock {
+    .disabled {
+        opacity: 0.45;
+        pointer-events: none;
+    }
+
+    .actions-panel {
         display: grid;
         gap: 0.55rem;
     }
 
     .selected-user-summary {
-        border: 1px solid #d9e6fa;
         border-radius: 10px;
-        background: #fff;
+        border: 1px solid #d9e6fa;
+        background: #ffffff;
         padding: 0.55rem;
+        display: grid;
+        gap: 0.15rem;
     }
 
     .selected-user-summary p {
-        margin: 0.1rem 0;
+        margin: 0;
+        font-size: 0.84rem;
         color: #2b4264;
-        font-size: 0.86rem;
     }
 
     .action-form {
-        border: 1px solid #dbe7fb;
         border-radius: 10px;
-        background: #fff;
+        border: 1px solid #dbe7fb;
+        background: #ffffff;
         padding: 0.55rem;
         display: grid;
-        gap: 0.4rem;
+        gap: 0.38rem;
     }
 
     .action-form h3 {
@@ -1245,35 +1409,24 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
     }
 
     .danger {
+        border-radius: 999px;
+        border: 1px solid #b42323;
         background: #b42323;
-        border-color: #b42323;
+        color: #ffffff;
+        padding: 0.42rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
     }
 
-    .integrity-grid {
-        margin-top: 0.55rem;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.5rem;
+    .history-block {
+        margin-top: 0.2rem;
+        border-top: 1px solid #e2ebfa;
+        padding-top: 0.6rem;
     }
 
-    .integrity-card {
-        border: 1px solid #dce6f7;
-        border-radius: 10px;
-        background: #fff;
-        padding: 0.55rem;
-        display: grid;
-        text-decoration: none;
-        color: #27486f;
-        gap: 0.15rem;
-    }
-
-    .integrity-card span {
-        font-size: 1.02rem;
-        font-weight: 700;
-    }
-
-    .history-heading {
-        margin: 0.8rem 0 0.35rem;
+    .history-block h3 {
+        margin: 0 0 0.35rem;
         font-size: 0.92rem;
         color: #2a4367;
     }
@@ -1289,61 +1442,65 @@ const shownTo = totalUsers === 0 ? 0 : offset + users.length;
     .history-list li {
         border: 1px solid #dce6f7;
         border-radius: 10px;
-        background: #fff;
+        background: #ffffff;
         padding: 0.5rem;
         display: grid;
         gap: 0.15rem;
     }
 
+    .history-list strong {
+        font-size: 0.84rem;
+        color: #27486f;
+    }
+
     .history-list p,
     .history-list span {
         margin: 0;
-        color: #556a88;
         font-size: 0.82rem;
+        color: #556a88;
     }
 
     .subtle {
-        color: #6b7280;
         margin: 0;
+        color: #6b7280;
     }
 
-    @media (max-width: 1240px) {
-        .metrics-grid {
+    @media (max-width: 1360px) {
+        .metric-ribbon {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
-        .tower-grid {
-            grid-template-columns: 1fr;
+        .workspace-grid {
+            grid-template-columns: minmax(250px, 0.9fr) minmax(0, 1.35fr);
+        }
+
+        .actions-panel {
+            grid-column: 1 / -1;
         }
     }
 
-    @media (max-width: 820px) {
-        .filters-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+    @media (max-width: 980px) {
+        .workspace-grid {
+            grid-template-columns: 1fr;
         }
 
         .bulk-controls {
             grid-template-columns: 1fr;
         }
-
-        .integrity-grid {
-            grid-template-columns: 1fr;
-        }
     }
 
-    @media (max-width: 620px) {
-        .metrics-grid {
+    @media (max-width: 760px) {
+        .metric-ribbon {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .filters-grid {
-            grid-template-columns: 1fr;
-        }
-
+        .filter-actions,
         .pagination-row {
             flex-direction: column;
         }
 
+        .cta,
+        .ghost,
         .pager {
             width: 100%;
         }
